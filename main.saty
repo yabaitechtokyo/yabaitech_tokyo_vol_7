@@ -1,0 +1,51 @@
+@require: base/debug
+@require: class-yabaitech/yabaitech
+
+@import: gfn/article
+@import: irnbru/article
+@import: maswag/article
+@import: zeptometer/article
+@import: binary/article
+@import: nullpo_head/article
+@import: wasabiz/article
+@import: censored/article
+@import: mh/article
+
+let () = Debug.log ``
+=====================
+YABAITECH.TOKYO vol.7
+
+　 ∧,,∧
+　(；`・ω・）　　｡･ﾟ･⌒） pdf 作るよ！！
+　/　　 ｏ━ヽニニフ))
+　しー-Ｊ
+
+=====================
+`` in
+
+let colophon = ColophonData.make (|
+  title = `YABAITECH.TOKYO vol.7`;
+  history = [];
+  publisher = (Option.some `yabaitech.tokyo`);
+  website = (Option.some `http://yabaitech.tokyo`);
+  email = (Option.some `admin@yabaitech.tokyo`);
+  printer = Option.none;
+|)
+in
+document (|
+  title = `YABAITECH.TOKYO`;
+  volume = `vol.7`;
+  date = `2021`;
+  front = Option.none;
+  colophon = colophon;
+|) '<
+  #Gfn.article;
+  #Irnbru.article;
+  #MasWag.article;
+  #Zeptometer.article;
+  #Binary.article;
+  #NullpoHead.article;
+  #Wasabiz.article;
+  #Censored.article;
+  #Mh.article;
+  >

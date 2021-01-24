@@ -1,0 +1,36 @@
+opam-version: "2.0"
+name: "yabai2021S"
+version: "0.0.1"
+synopsis: "yabaitech.tokyo vol.6"
+description: """
+yabaitech.tokyo vol.6
+"""
+maintainer: "Yuito Murase <yuito@acupof.coffee>"
+authors: [
+    "Masaki Waga"
+    "Masayoshi Hayashi"
+    "Ryo Sasaki"
+    "Ryuichi Kiryo"
+    "Takashi Suwa"
+    "Takaya Saeki"
+    "Wataru Inariba"
+    "Yuichi Nishiwaki"
+    "Yuito Murase"
+]
+license: "MIT"
+homepage: "https://github.com/yabaitechtokyo/yabai2021s"
+bug-reports: "https://github.com/yabaitechtokyo/yabai2021s/issues"
+dev-repo: "git+https://github.com/yabaitechtokyo/yabai2021s.git"
+depends: [
+  "satysfi" {= "0.0.5"}
+  "satyrographos" {>= "0.0.2.7" & < "0.0.3"}
+  "satysfi-base" {>= "1.2.1" & < "2.0.0"}
+  "satysfi-class-yabaitech" {= "0.0.7"}
+]
+build: [ ]
+install: [
+  ["satyrographos" "opam" "install"
+   "--name" "yabai2021S"
+   "--prefix" "%{prefix}%"
+   "--script" "%{build}%/Satyristes"]
+]

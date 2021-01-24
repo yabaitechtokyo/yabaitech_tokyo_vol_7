@@ -1,0 +1,11 @@
+@require: class-yabaitech/yabaitech
+
+module Wasabiz : sig
+
+  val article : block-text
+
+end = struct
+
+  let article = '<>
+
+end
