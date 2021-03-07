@@ -1,749 +1,520 @@
-#+TITLE: Verilogで実行時検証と形式検証をした話
+#+TITLE: チルノのパーフェクトフォワーディング (完全転送) 教室
 #+AUTHOR: MasWag
 
 * COMMENT Materials
 
-** https://symbiyosys.readthedocs.io/en/latest/
+** https://cpprefjp.github.io/lang/cpp11/rvalue_ref_and_move_semantics.
+
+** https://qiita.com/rinse_/items/cffa87016b7de49391ae
+
+** https://timsong-cpp.github.io/cppwp/n3337/basic.lval
+
+
+** https://cpplover.blogspot.com/2009/11/rvalue-reference_23.html
+
+** NRVO?
 
 * はじめに
 
-** 諸般の事情でHDLについて調べていたらSymbiYosysというツールを見つけた
+#+begin_quote
+みんなぁ～！　
 
-** 筆者はこれまで、遠い昔にVHDLを書いた以外にHDLに関する経験はないがやってみた
+C++11、 (だいたい) ⑨ 周年だよ！
 
-* How to install
+\ruby[`あたい`]{|値|}みたいな天才目指して、
 
-** 依存関係がありすぎて大変そう
+頑張っていってねー！
+#+end_quote
 
-** ひとまずdocker imageを使ってみる
+** コメント
 
-*** https://hub.docker.com/r/andrsmllr/symbiyosys
+この記事はC++11のパーフェクトフォワーディングについての記事です。これを読んで何かがわかるのかは良くわからないですけど生温かい視線で見ていただけると幸いです。
 
-* Half Adder
+* rvalue と lvalue
 
-#+BEGIN_SRC verilog :tangle half_adder.v :noweb yes
-  module half_adder (input A, input B, output wire carry, output wire sum);
-   <<VERILOG_HALF_ADDER_BODY>>
-  endmodule
-#+END_SRC
+#+begin_quote
+キラキラ　C++
 
-#+NAME: VERILOG_HALF_ADDER_BODY
-#+BEGIN_SRC verilog
-  assign carry = A & B;
-  assign sum = A ^ B;
-#+END_SRC
+輝く rvalue
 
-** COMMENT Trial with Verilator
+参照　\ruby[`右辺値`]{|rvalue|}　もなんとかして入ろう
 
-*** Verilator
+関数 変数　トップ目指して GO GO!!\footnote{この記事はC++11についての記事です。Go言語は関係ない}
+#+end_quote
 
-**** How to install
+** 解説
 
-#+BEGIN_SRC sh
-brew install verilator
-#+END_SRC
+C や C++ には rvalue (右辺値) と lvalue (左辺値) があります。元々は代入の左辺に置くことのできる値が lvalue (左辺値)、右辺にしか置けない値が rvalue (右辺値) という非常にわかりやすい区別でしたし、「参照」といえば左辺値の参照のことでした。
 
-**** How to use Verilator
-
-***** https://msyksphinz.hatenablog.com/entry/2020/05/06/040000
-
-#+BEGIN_SRC sh
-verilator --version
-#+END_SRC
-
-#+RESULTS:
-: Verilator 4.108 2021-01-10 rev v4.106-158-g484b76e5b
-
-#+BEGIN_SRC sh
-verilator -cc half_adder.v
-#+END_SRC
-
-#+RESULTS:
-
-
-*** Manual test with an exhaustive test bench
-
-**** Write the test bench in C++
-
-#+BEGIN_SRC c++ :tangle half_adder_bench.cc
-  #include <cstdio>
-  #include <verilated.h>
-  #include <tuple>
-  #include <array>
-  #include "./Vhalf_adder.h"
-
-  int main(int argc, char *argv[])
-  {
-    Verilated::commandArgs(argc, argv);
-
-    // Instanciate DUT
-    Vhalf_adder *dut = new Vhalf_adder();
-
-    // Give the initial inputs
-    dut->clk = 0;
-    dut->A = 0;
-    dut->B = 0;
-
-    // define the constants
-    const int clock_interval = 10;
-    const int simulation_duration = 100;
-
-    // construct the table of inputs
-    std::array<std::tuple<bool, bool>, 4> input = {{
-        {0, 0},
-        {1, 0},
-        {0, 1},
-        {1, 1}
-      }};
-    int  input_index = 0;
-
-    for (int i = 0; i < simulation_duration; ++i) {
-      if ((i % (clock_interval / 2)) == 0) {
-        // Toggle clock 
-        dut->clk = !(dut->clk);
-      }
-
-      if ((i % clock_interval) == 0) {
-        // update the input
-        std::tie(dut->A, dut->B) = input[input_index++];
-        input_index %= input.size();
-      }
-
-      // evaluate DUT
-      dut->eval();
-
-      if ((i % clock_interval) == 0) {
-        // print the I/O
-        printf ("A: %d, B: %d, carry: %d, sum: %d\n", dut->A, dut->B, dut->carry, dut->sum);
-      }
-    }
-
-    return 0;
+#+BEGIN_SRC c++
+  int return_int() {
+    return 10;
+  }
+  void lvalue_reference(void) {
+    // C++11より前は、右辺にある値がrvalueで左辺にある値がlvalueだった (非常に明快で良い)
+    int alice_margatroid = return_int();
+    // 当たり前だが、lvalueの参照を取ることができる
+    int& pc98_alice = alice_margatroid; // 旧作のアリスはWin版のアリス・マーガトロイドと同一人物(らしい)
   }
 #+END_SRC
 
-**** Execute the test bench
+ところが C++11で、rvalue でrvalue 参照 (右辺値参照) という左辺に置くことのできる rvalue が登場しました…という話を次の節でしていきます。
 
-***** Build
+* rvalue 参照の例
 
-#+BEGIN_SRC sh :results org
-  verilator -cc half_adder.v -exe half_adder_bench.cc
-  make -C obj_dir -f Vhalf_adder.mk
+#+begin_quote
+バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+
+チルノ「ちょっ…違っ…rvalueじゃないもん！」
+
+(バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+
+チルノ「左辺にある方がlvalueなのよぉ！」
+#+end_quote
+
+#+BEGIN_SRC c++
+  void rvalue_reference(void) {
+    // C++11以降では&&でrvalueの参照も取ることができる様になった
+    // chirnoは左辺にあるけどrvalueの参照なのでrvalue (正確にはeXpiring value、xvalue)
+    // rvalue 参照はrvalueだけどlife timeが延長されて、式の外に出ても使うことができる。
+    int&& chirno = return_int();
 #+END_SRC
 
-#+RESULTS:
-#+begin_src org
-clang++  -I.  -MMD -I/usr/local/Cellar/verilator/4.108/share/verilator/include -I/usr/local/Cellar/verilator/4.108/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -faligned-new -fbracket-depth=4096 -fcf-protection=none -Qunused-arguments -Wno-bool-operation -Wno-tautological-bitwise-compare -Wno-parentheses-equality -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow      -std=gnu++14 -Os -c -o half_adder_bench.o ../half_adder_bench.cc
-/usr/bin/perl /usr/local/Cellar/verilator/4.108/share/verilator/bin/verilator_includer -DVL_INCLUDE_OPT=include Vhalf_adder.cpp Vhalf_adder__Slow.cpp Vhalf_adder__Syms.cpp > Vhalf_adder__ALL.cpp
-clang++  -I.  -MMD -I/usr/local/Cellar/verilator/4.108/share/verilator/include -I/usr/local/Cellar/verilator/4.108/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -faligned-new -fbracket-depth=4096 -fcf-protection=none -Qunused-arguments -Wno-bool-operation -Wno-tautological-bitwise-compare -Wno-parentheses-equality -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow      -std=gnu++14 -Os -c -o Vhalf_adder__ALL.o Vhalf_adder__ALL.cpp
-Archive ar -cr Vhalf_adder__ALL.a Vhalf_adder__ALL.o
-clang++    half_adder_bench.o verilated.o Vhalf_adder__ALL.a      -o Vhalf_adder
-#+end_src
+#+begin_quote
+(バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
 
-***** Execute
+チルノ「なにようるさいわね　このrvalueっ！」
 
-#+BEGIN_SRC sh :results org
-  ./obj_dir/Vhalf_adder
-#+END_SRC
+(バーカ！バーカ！バーカ！バーカ！)
 
-#+RESULTS:
-#+begin_src org
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 1
-A: 0, B: 1, carry: 0, sum: 1
-A: 1, B: 1, carry: 1, sum: 0
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 1
-A: 0, B: 1, carry: 0, sum: 1
-A: 1, B: 1, carry: 1, sum: 0
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 1
-#+end_src
+ピチューン (life timeが終わって死んだ音)
+#+end_quote
 
-
-*** Assertion with an exhaustive testbench
-
-**** Half adder with assertion
-
-#+BEGIN_SRC verilog
-   always @(posedge clk) assert ({carry, sum} == A + B);
-#+END_SRC
-
-#+BEGIN_SRC verilog :tangle half_adder_with_assertion.v :noweb yes
-  module clocked_half_adder (input clk, input A, input B, output reg carry, output reg sum);
-   <<VERILOG_HALF_ADDER_BODY>>
-   <<VERILOG_HALF_ADDER_ASSERTION>>
-  endmodule
-#+END_SRC
-
-**** Test bench
-
-#+BEGIN_SRC c++ :tangle half_adder_with_assertion_bench.cc
-  #include <cstdio>
-  #include <verilated.h>
-  #include <tuple>
-  #include <array>
-  #include "./Vhalf_adder_with_assertion.h"
-
-  int main(int argc, char *argv[])
-  {
-    Verilated::commandArgs(argc, argv);
-
-    // Instanciate DUT
-    Vhalf_adder_with_assertion *dut = new Vhalf_adder_with_assertion();
-
-    // Give the initial inputs
-    dut->clk = 0;
-    dut->A = 0;
-    dut->B = 0;
-
-    // define the constants
-    const int clock_interval = 10;
-    const int simulation_duration = 100;
-
-    // construct the table of inputs
-    std::array<std::tuple<bool, bool>, 4> input = {{
-        {0, 0},
-        {1, 0},
-        {0, 1},
-        {1, 1}
-      }};
-    int  input_index = 0;
-
-    for (int i = 0; i < simulation_duration; ++i) {
-      if ((i % (clock_interval / 2)) == 0) {
-        // Toggle clock 
-        dut->clk = !(dut->clk);
-      }
-
-      if ((i % clock_interval) == 0) {
-        // update the input
-        std::tie(dut->A, dut->B) = input[input_index++];
-        input_index %= input.size();
-      }
-
-      // evaluate DUT
-      dut->eval();
-
-      if ((i % clock_interval) == 0) {
-        // print the I/O
-        printf ("A: %d, B: %d, carry: %d, sum: %d\n", dut->A, dut->B, dut->carry, dut->sum);
-      }
-    }
-
-    return 0;
+#+BEGIN_SRC c++
+    // 普通のrvalue (正確にはprvalue) は式が終わるとlife timeが終わる
+    return_int();
+    // ここでchirnoのlife timeが消える
+    // 一方 return chirno; の様にすれば rvalue 参照 を返して引き続きlife timeを伸ばすこともできる
   }
 #+END_SRC
 
-**** Execute the test bench
+** 解説
 
-***** Build
+C++11ではこれまで通りのrvalue (prvalue) に加えてrvalueの参照を作ることができる様になりました。 rvalue なのに参照とは？という点はとりあえず置いておいて、 rvalue の参照を使うことで rvalue を式の外でも使うことができる様になりました。
 
-#+BEGIN_SRC sh :results org
-  verilator -cc half_adder_with_assertion.v -exe half_adder_with_assertion_bench.cc
-  make -C obj_dir -f Vhalf_adder_with_assertion.mk
-#+END_SRC
+* rvalueの参照の存在意義: 無駄なcopyを防ぐ
 
-#+RESULTS:
-#+begin_src org
-clang++  -I.  -MMD -I/usr/local/Cellar/verilator/4.108/share/verilator/include -I/usr/local/Cellar/verilator/4.108/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -faligned-new -fbracket-depth=4096 -fcf-protection=none -Qunused-arguments -Wno-bool-operation -Wno-tautological-bitwise-compare -Wno-parentheses-equality -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow      -std=gnu++14 -Os -c -o half_adder_with_assertion_bench.o ../half_adder_with_assertion_bench.cc
-/usr/bin/perl /usr/local/Cellar/verilator/4.108/share/verilator/bin/verilator_includer -DVL_INCLUDE_OPT=include Vhalf_adder_with_assertion.cpp Vhalf_adder_with_assertion__Slow.cpp Vhalf_adder_with_assertion__Syms.cpp > Vhalf_adder_with_assertion__ALL.cpp
-clang++  -I.  -MMD -I/usr/local/Cellar/verilator/4.108/share/verilator/include -I/usr/local/Cellar/verilator/4.108/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -faligned-new -fbracket-depth=4096 -fcf-protection=none -Qunused-arguments -Wno-bool-operation -Wno-tautological-bitwise-compare -Wno-parentheses-equality -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow      -std=gnu++14 -Os -c -o Vhalf_adder_with_assertion__ALL.o Vhalf_adder_with_assertion__ALL.cpp
-Archive ar -cr Vhalf_adder_with_assertion__ALL.a Vhalf_adder_with_assertion__ALL.o
-clang++    half_adder_with_assertion_bench.o verilated.o Vhalf_adder_with_assertion__ALL.a      -o Vhalf_adder_with_assertion
-#+end_src
+ここでは以下の =Bus= クラスを使います。
 
-***** Execute
+#+BEGIN_SRC c++
+  #include <iostream>
+  #include <algorithm>
 
-#+BEGIN_SRC sh :results org
-  ./obj_dir/Vhalf_adder_with_assertion
-#+END_SRC
+  class Bus {
+  private:
+    char * ptr; // C++11以降であればスマートポインタを使うべき
+  public:
+    Bus() {
+      std::cout << "default constructor" << "\n";
 
-#+RESULTS:
-#+begin_src org
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 1
-A: 0, B: 1, carry: 0, sum: 1
-A: 1, B: 1, carry: 1, sum: 0
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 1
-A: 0, B: 1, carry: 0, sum: 1
-A: 1, B: 1, carry: 1, sum: 0
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 1
-#+end_src
-
-***** Issue: Verilator does not support system verilog assertion :-(
-
-****** Icarus Verilog supports is :-) https://github.com/steveicarus/iverilog/issues/193
-
-**** Wrong half adder
-
-#+BEGIN_SRC verilog :tangle wrong_half_adder_with_assertion.v :noweb yes
-  module clocked_wrong_half_adder_with_assertion (input clk, input A, input B, output carry, output sum);
-   <<VERILOG_WRONG_CLOCKED_HALF_ADDER_BODY>>
-   <<VERILOG_HALF_ADDER_ASSERTION>>
-  endmodule
-#+END_SRC
-
-***** COMMENT
-
-#+NAME: VERILOG_WRONG_CLOCKED_HALF_ADDER_BODY
-#+BEGIN_SRC verilog
-     initial carry = 0;
-     initial sum = 0;
-   
-     always @(posedge clk) begin
-        carry <= A & B;
-        sum <= A | B;
-     end
-#+END_SRC
-
-**** Test bench
-
-#+BEGIN_SRC c++ :tangle wrong_half_adder_with_assertion_bench.cc
-  #include <cstdio>
-  #include <verilated.h>
-  #include <tuple>
-  #include <array>
-  #include "./Vwrong_half_adder_with_assertion.h"
-
-  int main(int argc, char *argv[])
-  {
-    Verilated::commandArgs(argc, argv);
-
-    // Instanciate DUT
-    Vwrong_half_adder_with_assertion *dut = new Vwrong_half_adder_with_assertion();
-
-    // Give the initial inputs
-    dut->clk = 0;
-    dut->A = 0;
-    dut->B = 0;
-
-    // define the constants
-    const int clock_interval = 10;
-    const int simulation_duration = 100;
-
-    // construct the table of inputs
-    std::array<std::tuple<bool, bool>, 4> input = {{
-        {0, 0},
-        {1, 0},
-        {0, 1},
-        {1, 1}
-      }};
-    int  input_index = 0;
-
-    for (int i = 0; i < simulation_duration; ++i) {
-      if ((i % (clock_interval / 2)) == 0) {
-        // Toggle clock 
-        dut->clk = !(dut->clk);
-      }
-
-      if ((i % clock_interval) == 0) {
-        // update the input
-        std::tie(dut->A, dut->B) = input[input_index++];
-        input_index %= input.size();
-      }
-
-      // evaluate DUT
-      dut->eval();
-
-      if ((i % clock_interval) == 0) {
-        // print the I/O
-        printf ("A: %d, B: %d, carry: %d, sum: %d\n", dut->A, dut->B, dut->carry, dut->sum);
-      }
+      ptr = new char[3];
+      // 本当は何か意味のあることをやる
     }
+    // C++03以前でもできた、コピーコンストラクタ
+    Bus(Bus const & bus) {
+      std::cout << "copy constructor" << "\n";
+      ptr = new char[3];
+      // 受け取ったオブジェクトをコピーする
+      std::copy(ptr, ptr + 3, bus.ptr);
+    }
+    // C++11以降でできる様になった、ムーブコンストラクタ
+    // rvalueの参照を受け取った場合、受け取ったオブジェクトを破壊しても良い
+    Bus(Bus && bus) {
+      std::cout << "move constructor" << "\n";
+      // 受け取ったオブジェクト中のptrをムーブして破壊する
+      ptr = bus.ptr;
+      bus.ptr = nullptr;
+    }
+    void print_ptr() {
+      std::cout << std::hex << reinterpret_cast<size_t>(ptr) << "\n";
+    }
+    bool is_null() {
+      return ptr == nullptr;
+    }
+    ~Bus() {
+      delete [] ptr;
+    }
+  };
+#+END_SRC
 
-    return 0;
+#+begin_quote
+紅魔館からバスが出て始めに3人乗りました
+#+end_quote
+
+#+BEGIN_SRC c++
+  void copy_and_move() {
+    Bus koumakan = Bus(); // 内部で charが3回newされる
+    koumakan.print_ptr(); // TODO: 出力を書く
+#+END_SRC
+
+#+begin_quote
+白玉楼にコピーして半人(はんじん)だけ乗りました
+#+end_quote
+
+#+BEGIN_SRC c++
+    Bus hakugyokurou = Bus(static_cast<const Bus&>(koumakan)); // コピーコンストラクタ。static_castは不要
+    koumakan.print_ptr(); // TODO: 出力を書く
+    hakugyokurou.print_ptr(); // TODO: 出力を書く
+#+END_SRC
+
+#+begin_quote
+八雲さん家にムーブして 結局紅魔の乗客何人だ？
+#+end_quote
+
+#+BEGIN_SRC c++
+    Bus yakumo = Bus(static_cast<Bus&&>(koumakan)); // ムーブコンストラクタ。これ以降でkoumakanを使ってはいけない
+#+END_SRC
+
+#+begin_quote
+答えは答えは　0人　0人
+
+なぜならなぜなら　そ・れ・は
+
+メモリ操作でムーブエンド
+#+end_quote
+
+#+BEGIN_SRC c++
+    koumakan.print_ptr(); // koumakan.ptr は nullptr なので 0が出力される
+    hakugyokurou.print_ptr();  // TODO: 出力を書く
+    yakumo.print_ptr(); // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
   }
 #+END_SRC
 
-**** Execute the test bench
+** 解説
 
-***** Build
+rvalue の参照ですが、無駄なメモリ上のcopyを防ぐために使います。より正確に言うと、 rvalue の参照として渡されたオブジェクトは破壊してもよい、というおやくそくがあります。 =int= や =double= などのプリミティブ型の場合は「破壊」と言っても特に何も破壊するものもありませんが、例えば上記例の =Bus= の場合には与えられたオブジェクトを破壊することで、コピーコンストラクタにある様にメモリの中身をコピーする代わりに、ムーブコンストラクタにある様にポインタの取り替えだけでオブジェクトを生成することができます。
 
-#+BEGIN_SRC sh :results org
-  verilator -cc wrong_half_adder_with_assertion.v -exe wrong_half_adder_with_assertion_bench.cc
-  make -C obj_dir -f Vwrong_half_adder_with_assertion.mk
+* std::move
+
+#+begin_quote
+キャストに　意味など無いわ
+
+rvalue 立てば　いいのよ
+
+std::moveがあれば　な・ん・で・も 1 2 9!
+#+end_quote
+
+** 解説
+
+前述の例では =static=cast<Bus&&>(koumakan)= と書くことで =koumakan= の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの =std::move= です。結局やっていることは =static_cast= と同じですが、 =std::move= を使うことで前述の例を以下の様に短かく書くことができます。
+
+#+BEGIN_SRC c++
+  void copy_and_move2() {
+    Bus koumakan = Bus(); // 内部で charが3回newされる
+    koumakan.print_ptr();
+
+    Bus hakugyokurou = Bus(koumakan); // コピーコンストラクタ。static_castは不要
+    koumakan.print_ptr();
+    hakugyokurou.print_ptr();
+    Bus yakumo = Bus(std::move(koumakan)); // ムーブコンストラクタ。これ以降でkoumakanを使ってはいけない
+    koumakan.print_ptr(); // koumakan.ptr は nullptr なので 0が出力される
+    hakugyokurou.print_ptr();
+    yakumo.print_ptr(); // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
+  }
 #+END_SRC
 
-#+RESULTS:
-#+begin_src org
-clang++  -I.  -MMD -I/usr/local/Cellar/verilator/4.108/share/verilator/include -I/usr/local/Cellar/verilator/4.108/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -faligned-new -fbracket-depth=4096 -fcf-protection=none -Qunused-arguments -Wno-bool-operation -Wno-tautological-bitwise-compare -Wno-parentheses-equality -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow      -std=gnu++14 -Os -c -o wrong_half_adder_with_assertion_bench.o ../wrong_half_adder_with_assertion_bench.cc
-/usr/bin/perl /usr/local/Cellar/verilator/4.108/share/verilator/bin/verilator_includer -DVL_INCLUDE_OPT=include Vwrong_half_adder_with_assertion.cpp Vwrong_half_adder_with_assertion__Slow.cpp Vwrong_half_adder_with_assertion__Syms.cpp > Vwrong_half_adder_with_assertion__ALL.cpp
-clang++  -I.  -MMD -I/usr/local/Cellar/verilator/4.108/share/verilator/include -I/usr/local/Cellar/verilator/4.108/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -faligned-new -fbracket-depth=4096 -fcf-protection=none -Qunused-arguments -Wno-bool-operation -Wno-tautological-bitwise-compare -Wno-parentheses-equality -Wno-sign-compare -Wno-uninitialized -Wno-unused-parameter -Wno-unused-variable -Wno-shadow      -std=gnu++14 -Os -c -o Vwrong_half_adder_with_assertion__ALL.o Vwrong_half_adder_with_assertion__ALL.cpp
-Archive ar -cr Vwrong_half_adder_with_assertion__ALL.a Vwrong_half_adder_with_assertion__ALL.o
-clang++    wrong_half_adder_with_assertion_bench.o verilated.o Vwrong_half_adder_with_assertion__ALL.a      -o Vwrong_half_adder_with_assertion
-#+end_src
+* Universal参照: みんな大好きテンプレート
 
-***** Execute
+ここからは rvalue 参照や lvalue 参照とテンプレートの関係について見ていきます。
 
-#+BEGIN_SRC sh :results org
-  ./obj_dir/Vwrong_half_adder_with_assertion
+#+begin_quote
+くるくる　template　ぐるぐる　頭回る
+
+だって　\ruby[`つぶら目玉`]{|&|}　二つ(まで)しかないのに
+
+三本の \ruby[`針`]{|&|} なんて　ちんぷんかん
+#+end_quote
+
+#+BEGIN_SRC c++
+  #include <iostream>
+  #include <type_traits>
+
+  template<typename T>
+  void print_if_ref(T&&) { // T が lvalue (参照) の場合は T&& は lvalue 参照に、T が rvalue (参照) の場合は T&& は rvalue 参照になる
+    if (std::is_lvalue_reference<T&&>::value) {
+      std::cout << "lvalue ref" << std::endl;
+    } else if(std::is_rvalue_reference<T&&>::value) {
+      std::cout << "rvalue ref" << std::endl;
+    }
+  }
+
+  void universal() {
+    int chirno = 9;
+    print_if_ref(chirno); // lvalue ref
+    print_if_ref(9); // rvalue ref
+    int& chirno_ref = chirno;
+    print_if_ref(chirno_ref); // lvalue ref
+  }
 #+END_SRC
 
-#+RESULTS:
-#+begin_src org
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 0
-A: 0, B: 1, carry: 0, sum: 0
-A: 1, B: 1, carry: 0, sum: 0
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 0
-A: 0, B: 1, carry: 0, sum: 0
-A: 1, B: 1, carry: 0, sum: 0
-A: 0, B: 0, carry: 0, sum: 0
-A: 1, B: 0, carry: 0, sum: 0
-#+end_src
+** COMMENT TODO 解説
+
+*** =auto= でも同様
+
+* パーフェクトフォワーディング
+
+#+begin_quote
+次々　参照出る　まだまだ　授業続く
+
+凍る　部屋の中
+
+参照の左辺も右辺も　気にせず
+
+ゆっくりしていってね!!!
+#+end_quote
+
+#+BEGIN_SRC c++
+template<typename T>
+void universal_pass(T&& a) {
+  print_if_ref(a);
+}
+
+template<typename T>
+void move_pass(T&& a) {
+  print_if_ref(std::move(a));
+}
+
+template<typename T>
+void perfect_forwarding_pass(T&& a) {
+  print_if_ref(std::forward<T>(a));
+}
 
 
-** Testing with Icarus Verilog
+void universal() {
+  int chirno = 9;
+  universal_pass(chirno);
+  universal_pass(9);
+}
 
-*** What is Icarus Verilog
-
-**** Reference: http://cellspe.matrix.jp/zerofpga/icarus.html
-
-**** How to install
-
-#+BEGIN_SRC sh
-brew install icarus-verilog
+void move() {
+  int chirno = 9;
+  move_pass(chirno);
+  move_pass(9);
+}
+void perfect_forward() {
+  int chirno = 9;
+  perfect_forwarding_pass(chirno);
+  perfect_forwarding_pass(9);
+}
 #+END_SRC
 
-**** How to use Icarus Verilog
-
-***** Compile
-        
-#+BEGIN_SRC sh
-iverilog -o [OUTPUT_EXECUTABLE] [INPUT_VERILOG_FILES]
-#+END_SRC
-
-***** Simulation
-
-#+BEGIN_SRC sh
-vvp [EXECUTABLE]
-#+END_SRC
-
-**** Note: Concurrent assertion is not supported by Icarus Verilog
-
-For example, we cannot use the following in Icarus Verilog.
-
-#+BEGIN_SRC verilog
-  assert property (@(posedge(clk) {carry, sum} == $past(A) + $past(B)));
-#+END_SRC
-
-*** Manual test with an exhaustive test bench
-
-**** Write the test bench in System Verilog
-
-#+BEGIN_SRC verilog :tangle half_adder_bench.v :noweb yes
-  `timescale 1ns / 1ps
-  module half_adder_bench();
-     <<SIMULATOR_PARAMETERS>>
-     <<HALF_ADDER_BENCH_SIGNAL_DEFINITION>>
-     <<HALF_ADDER_BENCH_SIMULATOR_CONFIGURATION>>
-     <<CLOCK_GENERATION>>
-     <<HALF_ADDER_BENCH_INPUT_GENERATION>>
-     <<HALF_ADDER_INSTANTIATE>>
-  endmodule
-#+END_SRC
-
-***** Define the constants
-
-#+NAME: SIMULATOR_PARAMETERS
-#+BEGIN_SRC verilog
-  parameter STEP = 10; // 10nanosec: 100MHz
-  parameter TICKS = 20;
-#+END_SRC
-
-***** Define the signals
-
-#+NAME: HALF_ADDER_BENCH_SIGNAL_DEFINITION
-#+BEGIN_SRC verilog
-  reg clk;
-  reg A;
-  reg B;
-  wire carry;
-  wire sum;
-#+END_SRC
-
-***** Simulator configuration
-
-#+NAME: HALF_ADDER_BENCH_SIMULATOR_CONFIGURATION
-#+BEGIN_SRC verilog
-  initial begin
-   // write the wave to wave.fst
-   // Note: FST is better than VCD: https://iverilog.fandom.com/wiki/Vvp_Flags#VCD.2FFST.2FLXT_arguments
-    $dumpfile("wave.fst");
-    // include all the wave information in half_adder
-    $dumpvars(0, half_adder);
-  end
-#+END_SRC
-
-***** Clock generation
-
-#+NAME: CLOCK_GENERATION
-#+BEGIN_SRC verilog
-  initial begin
-     clk = 1'b1;
-     repeat(TICKS * 2) begin
-        // reverse the clock
-        #(STEP / 2) clk = ~clk;
-     end
-     $finish;
-  end
-#+END_SRC
-
-***** Generate input signal
-
-#+NAME: HALF_ADDER_BENCH_INPUT_GENERATION
-#+BEGIN_SRC verilog
-  reg [1:0] step;
-  always begin
-     step = 0;
-     forever begin
-        step = step + 1;
-        case (step)
-          0: begin
-             A <= 1'b0;
-             B <= 1'b0;
-          end
-          1: begin
-             A <= 1'b1;
-             B <= 1'b0;
-          end
-          2: begin
-             A <= 1'b1;
-             B <= 1'b1;
-          end
-          3: begin
-             A <= 1'b0;
-             B <= 1'b1;
-          end
-          default: begin
-             A <= 1'b0;
-             B <= 1'b0;
-          end
-        endcase
-        #STEP;
-     end
-  end
-#+END_SRC
-
-***** Instantiate
-
-#+NAME: HALF_ADDER_INSTANTIATE
-#+BEGIN_SRC verilog
-  half_adder half_adder (
-              .A(A),
-              .B(B),
-              .carry(carry),
-              .sum(sum)
-    );
-#+END_SRC
-
-**** Execute the test bench
-
-***** Compile
-        
-#+BEGIN_SRC sh
-iverilog -o half_adder half_adder.v half_adder_bench.v
-#+END_SRC
-
-#+RESULTS:
-
-***** Simulation
-
-#+BEGIN_SRC sh
-vvp half_adder -fst 
-#+END_SRC
-
-#+RESULTS:
-: FST info: dumpfile wave.fst opened for output.
-
-**** Observe the output by gtkwave
-
-***** Install gtkwave
-
-#+BEGIN_SRC sh
-brew install gtkwave
-#+END_SRC
-
-***** open gtkwave and observe the output
-
-Open tab by Application+T
-
-*** Assertion with an exhaustive testbench
-
-**** Half adder with assertion
-
-値代入のタイミングで見ると変更直前の値をテストしているのかそうでないのかがわからないので、値代入と 0.5周期だけずらしたタイミングで値をテストする。
-
-#+NAME: VERILOG_HALF_ADDER_ASSERTION
-#+BEGIN_SRC verilog
-  always @(negedge clk) begin
-   forever begin
-      assert ({carry, sum} == A + B);
-      #STEP;
-    end
-  end
-#+END_SRC
-
-#+BEGIN_SRC verilog :tangle half_adder_bench_with_assertion.v :noweb yes
-  `timescale 1ns / 1ps
-  module half_adder_bench();
-     <<SIMULATOR_PARAMETERS>>
-     <<HALF_ADDER_BENCH_SIGNAL_DEFINITION>>
-     <<HALF_ADDER_BENCH_SIMULATOR_CONFIGURATION>>
-     <<CLOCK_GENERATION>>
-     <<HALF_ADDER_BENCH_INPUT_GENERATION>>
-     <<HALF_ADDER_INSTANTIATE>>
-     <<VERILOG_HALF_ADDER_ASSERTION>>
-  endmodule
-#+END_SRC
-
-**** Execute the test bench
-
-***** Compile
-        
-#+BEGIN_SRC sh
-iverilog -g2012 -o half_adder_with_assertion half_adder.v half_adder_bench_with_assertion.v
-#+END_SRC
-
-#+RESULTS:
-
-***** Simulation
-
-#+BEGIN_SRC sh :results org
-vvp half_adder_with_assertion -fst 
-#+END_SRC
-
-#+RESULTS:
-#+begin_src org
-FST info: dumpfile wave.fst opened for output.
-#+end_src
-
-**** Wrong half adder
-
-#+BEGIN_SRC verilog :tangle wrong_half_adder.v :noweb yes
-  module half_adder (input A, input B, output wire carry, output wire sum);
-     assign carry = A & B;
-     assign sum = A | B;
-  endmodule
-#+END_SRC
-
-**** Execute the test bench for wrong half adder
-
-***** Compile
-        
-#+BEGIN_SRC sh
-iverilog -g2012 -o wrong_half_adder wrong_half_adder.v half_adder_bench_with_assertion.v
-#+END_SRC
-
-#+RESULTS:
-
-***** Simulation
-
-#+BEGIN_SRC sh :results org
-vvp wrong_half_adder -fst 
-#+END_SRC
-
-#+RESULTS:
-#+begin_src org
-FST info: dumpfile wave.fst opened for output.
-ERROR: half_adder_bench_with_assertion.v:63: 
-       Time: 15000 Scope: half_adder_bench
-ERROR: half_adder_bench_with_assertion.v:63: 
-       Time: 55000 Scope: half_adder_bench
-ERROR: half_adder_bench_with_assertion.v:63: 
-       Time: 95000 Scope: half_adder_bench
-ERROR: half_adder_bench_with_assertion.v:63: 
-       Time: 135000 Scope: half_adder_bench
-ERROR: half_adder_bench_with_assertion.v:63: 
-       Time: 175000 Scope: half_adder_bench
-#+end_src
-
-
-** TODO Verification with SymbiYosys
-
-*** Half adder with assertion
-
-#+NAME: VERILOG_HALF_ADDER_ASSERTION_ALWAYS
-#+BEGIN_SRC verilog
-   always_comb assert ({carry, sum} == A + B);
-#+END_SRC
-
-#+BEGIN_SRC verilog :tangle half_adder_with_assertion.v :noweb yes
-   module half_adder (input A, input B, output wire carry, output wire sum);
-    <<VERILOG_HALF_ADDER_BODY>>
-    <<VERILOG_HALF_ADDER_ASSERTION_ALWAYS>>
-   endmodule
-#+END_SRC
-
-*** Configure SymbiYosys
-
-#+BEGIN_SRC conf :tangle half_adder.sby
-[options]
-mode prove
-
-[engines]
-smtbmc
-
-[script]
-read -formal half_adder_with_assertion.v
-prep -top half_adder
-
-[files]
-half_adder_with_assertion.v
-#+END_SRC
-
-*** Verify with SymbiYosys
-
-#+BEGIN_SRC sh
-docker run -it -v ${PWD}:/mnt andrsmllr/symbiyosys
-cd /mnt
-rm -rf /mnt/half_adder
-sby /mnt/half_adder.sby
-#+END_SRC
-
-*** Wrong half adder with assertion
-
-#+BEGIN_SRC verilog :tangle wrong_half_adder_with_assertion.v :noweb yes
-   module half_adder (input A, input B, output wire carry, output wire sum);
-      assign carry = A & B;
-      assign sum = A | B;
-    <<VERILOG_HALF_ADDER_ASSERTION_ALWAYS>>
-   endmodule
-#+END_SRC
-
-*** Configure SymbiYosys
-
-#+BEGIN_SRC conf :tangle wrong_half_adder.sby
-[options]
-mode prove
-
-[engines]
-smtbmc
-
-[script]
-read -formal wrong_half_adder_with_assertion.v
-prep -top half_adder
-
-[files]
-wrong_half_adder_with_assertion.v
-#+END_SRC
-
-*** Verify with SymbiYosys
-
-#+BEGIN_SRC sh
-docker run -it -v ${PWD}:/mnt andrsmllr/symbiyosys
-cd /mnt
-rm -rf /mnt/wrong_half_adder
-sby /mnt/wrong_half_adder.sby
-#+END_SRC
-
-* Full Adder
-
-* 8bit adder
-
-* fadd
+** COMMENT TODO 解説
+
+* COMMENT TODO まとめ
+
+* COMMENT Omitted 
+
+** (バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+チルノ「だからバカじゃないって言ってるでしょ！」
+(バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+チルノ「いい加減にしないと冷凍するわよ！」
+(バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+チルノ「そして粉々になって死ねばいいのよ！」
+(バーカ！バーカ！バーカ！バーカ！)
+
+** 霊夢んとこの100万円の壷を誰かが割っちゃった
+永遠亭のえーりんが弁償しに来ましたよ
+知らんぷりのイタズラてゐ 結局 賠償金額いくら？
+答えは答えは　0円　0円
+なぜならなぜなら　そ・れ・は
+そんな壷あるわけない
+
+** 常識超えたところに世界の真理がある
+秘密の数字目・指・し・て 1！2！9ーーー！！
+
+** ヘラヘラニヤけながらゲラゲラ笑いながら
+うっざー！因幡ウサギ可愛げもないのに
+新参の厨どもはホイ☆ホイ☆ホイ☆
+
+** 再生百万回　もれなく　愚民なんて
+どういう　ことなのよ　どっちらかって言うなら
+サーバー管理も　お疲れさんってとこね
+
+** わかった！アタイがあまりにも天才だから
+嫉妬してるんでしょ～？
+ほんと　しょうがないわねぇ
+せっかくだからアタイの天才の秘訣を
+ちょっとだけ教えてあげてもいいわよ？
+
+** あらゆるあらゆるあらゆるあらゆる
+あらゆる英知を
+集めて集めて集めて集めて束ねても
+あたいのあたいのあたいの
+あたいのあたいの丈夫な
+頭に頭に頭に頭にかなわない
+
+** 朝飯朝飯朝飯朝飯
+朝飯朝飯食べたら
+赤子の赤子の赤子の赤子の手をひねる
+あたいはあたいはあたいはあたいは
+あたいはあたいは完璧
+いわゆるいわゆるいわゆるいわゆるパーフェクト
+
+** ひゃ～くおくちょうまん　バッチリ☆
+
+** ヤマ　オチ　意味など無いわ
+キャラクター立てば　いいのよ
+元気があれば　な・ん・で・も 1！2！9ーーー！！
+
+** くるくる　時計の針　ぐるぐる　頭回る
+だって　つぶら目玉　二つしかないのに
+三本の針なんて　ちんぷんかん
+
+** 次々　問題出る　まだまだ　授業続く
+凍る　部屋の中
+ひんやりした温度も時間も　気にせず
+ゆっくりしていってね!!!
+
+** (バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+チルノ「バーカ！バーカ！」
+(バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+チルノ「バーカ！バーカ！」
+(バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+チルノ「もう馬鹿でいいわよ！知らないっ！！」
+(バーカ！バーカ！バーカ！バーカ！)
+
+
+
+* COMMENT Original
+
+** みんなぁ～！　
+
+*** チルノの算数教室始まるよー☆
+
+*** あたいみたいな天才目指して、
+
+*** 頑張っていってねー！
+
+** キラキラ　ダイヤモンド　
+
+*** 輝く　星のように
+
+*** 栄光　志望校　なんとかして入ろう
+
+*** 天才　秀才　トップ目指して GO GO!!
+
+** （バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+
+*** チルノ「ちょっ…違っ…馬鹿じゃないもん！」
+
+*** (バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+
+*** チルノ「馬鹿って言う方が馬鹿なのよぉ！」
+
+*** (バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+
+*** チルノ「なにようるさいわね　この馬鹿っ！」
+
+*** (バーカ！バーカ！バーカ！バーカ！)
+
+** 紅魔館からバスが出て始めに3人乗りました
+
+*** 白玉楼で一人降りて半人(はんじん)だけ乗りました
+
+*** 八雲さん家で二人降りて 結局乗客合計何人だ？
+
+*** 答えは答えは　0人　0人
+
+*** なぜならなぜなら　そ・れ・は
+
+*** 幻想郷にバス無い☆
+
+** ヤマ　オチ　意味など無いわ
+
+*** キャラクター立てば　いいのよ
+
+*** 元気があれば　な・ん・で・も 1 2 9!
+
+** くるくる　時計の針　ぐるぐる　頭回る
+
+*** だって　つぶら目玉　二つしかないのに
+
+*** 三本の針なんて　ちんぷんかん
+
+*** 次々　問題出る　まだまだ　授業続く
+
+*** 凍る　部屋の中
+
+*** ひんやりした温度も時間も　気にせず
+
+*** ゆっくりしていってね!!!
+
+** (バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+チルノ「だからバカじゃないって言ってるでしょ！」
+(バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+チルノ「いい加減にしないと冷凍するわよ！」
+(バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
+チルノ「そして粉々になって死ねばいいのよ！」
+(バーカ！バーカ！バーカ！バーカ！)
+
+** 霊夢んとこの100万円の壷を誰かが割っちゃった
+永遠亭のえーりんが弁償しに来ましたよ
+知らんぷりのイタズラてゐ 結局 賠償金額いくら？
+答えは答えは　0円　0円
+なぜならなぜなら　そ・れ・は
+そんな壷あるわけない
+
+** 常識超えたところに世界の真理がある
+秘密の数字目・指・し・て 1！2！9ーーー！！
+
+** ヘラヘラニヤけながらゲラゲラ笑いながら
+うっざー！因幡ウサギ可愛げもないのに
+新参の厨どもはホイ☆ホイ☆ホイ☆
+
+** 再生百万回　もれなく　愚民なんて
+どういう　ことなのよ　どっちらかって言うなら
+サーバー管理も　お疲れさんってとこね
+
+** わかった！アタイがあまりにも天才だから
+嫉妬してるんでしょ～？
+ほんと　しょうがないわねぇ
+せっかくだからアタイの天才の秘訣を
+ちょっとだけ教えてあげてもいいわよ？
+
+** あらゆるあらゆるあらゆるあらゆる
+あらゆる英知を
+集めて集めて集めて集めて束ねても
+あたいのあたいのあたいの
+あたいのあたいの丈夫な
+頭に頭に頭に頭にかなわない
+
+** 朝飯朝飯朝飯朝飯
+朝飯朝飯食べたら
+赤子の赤子の赤子の赤子の手をひねる
+あたいはあたいはあたいはあたいは
+あたいはあたいは完璧
+いわゆるいわゆるいわゆるいわゆるパーフェクト
+
+** ひゃ～くおくちょうまん　バッチリ☆
+
+** ヤマ　オチ　意味など無いわ
+キャラクター立てば　いいのよ
+元気があれば　な・ん・で・も 1！2！9ーーー！！
+
+** くるくる　時計の針　ぐるぐる　頭回る
+だって　つぶら目玉　二つしかないのに
+三本の針なんて　ちんぷんかん
+
+** 次々　問題出る　まだまだ　授業続く
+凍る　部屋の中
+ひんやりした温度も時間も　気にせず
+ゆっくりしていってね!!!
+
+** (バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+チルノ「バーカ！バーカ！」
+(バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+チルノ「バーカ！バーカ！」
+(バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+チルノ「もう馬鹿でいいわよ！知らないっ！！」
+(バーカ！バーカ！バーカ！バーカ！)
 
