@@ -9,7 +9,6 @@
 
 ** https://timsong-cpp.github.io/cppwp/n3337/basic.lval
 
-
 ** https://cpplover.blogspot.com/2009/11/rvalue-reference_23.html
 
 ** NRVO?
@@ -28,7 +27,7 @@ C++11、 (だいたい) ⑨ 周年だよ！
 
 ** コメント
 
-この記事はC++11のパーフェクトフォワーディングについての記事です。これを読んで何かがわかるのかは良くわからないですけど生温かい視線で見ていただけると幸いです。
+この記事はC++11のパーフェクトフォワーディングについての記事です。これを読んで何かがわかるのかは良くわからないですけど生温かい視線で見ていただけると幸いです。真面目に理解しようと思ったら別の記事を読んだ方が良いです。
 
 * rvalue と lvalue
 
@@ -103,13 +102,13 @@ C や C++ には rvalue (右辺値) と lvalue (左辺値) があります。元
 C++11ではこれまで通りのrvalue (prvalue) に加えてrvalueの参照を作ることができる様になりました。 rvalue なのに参照とは？という点はとりあえず置いておいて、 rvalue の参照を使うことで rvalue を式の外でも使うことができる様になりました。
 
 * rvalueの参照の存在意義: 無駄なcopyを防ぐ
+  :PROPERTIES:
+  :header-args: :noweb-ref PREVENT_COPY
+  :END:
 
 ここでは以下の =Bus= クラスを使います。
 
 #+BEGIN_SRC c++
-  #include <iostream>
-  #include <algorithm>
-
   class Bus {
   private:
     char * ptr; // C++11以降であればスマートポインタを使うべき
@@ -154,7 +153,7 @@ C++11ではこれまで通りのrvalue (prvalue) に加えてrvalueの参照を�
 #+BEGIN_SRC c++
   void copy_and_move() {
     Bus koumakan = Bus(); // 内部で charが3回newされる
-    koumakan.print_ptr(); // TODO: 出力を書く
+    koumakan.print_ptr(); // -> 7f8aa9405a80
 #+END_SRC
 
 #+begin_quote
@@ -163,8 +162,8 @@ C++11ではこれまで通りのrvalue (prvalue) に加えてrvalueの参照を�
 
 #+BEGIN_SRC c++
     Bus hakugyokurou = Bus(static_cast<const Bus&>(koumakan)); // コピーコンストラクタ。static_castは不要
-    koumakan.print_ptr(); // TODO: 出力を書く
-    hakugyokurou.print_ptr(); // TODO: 出力を書く
+    koumakan.print_ptr(); // -> 7f8aa9405a80
+    hakugyokurou.print_ptr(); // -> 7f8aa9405a90
 #+END_SRC
 
 #+begin_quote
@@ -184,10 +183,12 @@ C++11ではこれまで通りのrvalue (prvalue) に加えてrvalueの参照を�
 #+end_quote
 
 #+BEGIN_SRC c++
-    koumakan.print_ptr(); // koumakan.ptr は nullptr なので 0が出力される
-    hakugyokurou.print_ptr();  // TODO: 出力を書く
-    yakumo.print_ptr(); // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
-  }
+  // koumakan.ptr は nullptr なので 0が出力される
+  koumakan.print_ptr(); // -> 0
+  hakugyokurou.print_ptr(); // -> 7f8aa9405a90
+  // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
+  yakumo.print_ptr();  // -> 7f8aa9405a80
+}
 #+END_SRC
 
 ** 解説
@@ -204,10 +205,7 @@ rvalue 立てば　いいのよ
 std::moveがあれば　な・ん・で・も 1 2 9!
 #+end_quote
 
-** 解説
-
-前述の例では =static=cast<Bus&&>(koumakan)= と書くことで =koumakan= の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの =std::move= です。結局やっていることは =static_cast= と同じですが、 =std::move= を使うことで前述の例を以下の様に短かく書くことができます。
-
+#+NAME: MOVE
 #+BEGIN_SRC c++
   void copy_and_move2() {
     Bus koumakan = Bus(); // 内部で charが3回newされる
@@ -223,6 +221,10 @@ std::moveがあれば　な・ん・で・も 1 2 9!
   }
 #+END_SRC
 
+** 解説
+
+前述の例では =static=cast<Bus&&>(koumakan)= と書くことで =koumakan= の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの =std::move= です。結局やっていることは =static_cast= と同じですが、 =std::move= を使うことで前述の例を以下の様に短かく書くことができます。
+
 * Universal参照: みんな大好きテンプレート
 
 ここからは rvalue 参照や lvalue 参照とテンプレートの関係について見ていきます。
@@ -235,31 +237,35 @@ std::moveがあれば　な・ん・で・も 1 2 9!
 三本の \ruby[`針`]{|&|} なんて　ちんぷんかん
 #+end_quote
 
+#+NAME: UNIVERSAL_REFERENCE
 #+BEGIN_SRC c++
-  #include <iostream>
-  #include <type_traits>
-
   template<typename T>
-  void print_if_ref(T&&) { // T が lvalue (参照) の場合は T&& は lvalue 参照に、T が rvalue (参照) の場合は T&& は rvalue 参照になる
-    if (std::is_lvalue_reference<T&&>::value) {
+  void print_if_ref(T&&) { // T 自体は lvalue 参照か 参照ではない型になる。今回の例では T は int& か intのどちらかになる
+    // この static_assert の中身はC++17が必要
+    static_assert(std::disjunction<std::negation<std::is_reference<T>>, std::is_lvalue_reference<T>>::value, "T is not an rvalue reference."); // T自体は参照ならばつねに lvalue の参照になる
+    if (std::is_lvalue_reference<T&&>::value) { // T が int& の場合、 T&& は int& になる (T&&& -> T& と私は覚えた)
       std::cout << "lvalue ref" << std::endl;
-    } else if(std::is_rvalue_reference<T&&>::value) {
+    } else if(std::is_rvalue_reference<T&&>::value) { // T が int の場合、 T&& は int&& になる
       std::cout << "rvalue ref" << std::endl;
     }
   }
 
   void universal() {
     int chirno = 9;
-    print_if_ref(chirno); // lvalue ref
-    print_if_ref(9); // rvalue ref
+    print_if_ref(chirno); // -> lvalue ref
+    print_if_ref(9); // -> rvalue ref
     int& chirno_ref = chirno;
-    print_if_ref(chirno_ref); // lvalue ref
+    print_if_ref(chirno_ref); // -> lvalue ref
   }
 #+END_SRC
 
-** COMMENT TODO 解説
+** 解説
 
-*** =auto= でも同様
+みんな大好きテンプレート、 rvalue 参照とはどう組み合わせれば良いでしょうか？より具体的には、 lvalue を渡したら lvalue の参照として、rvalue を渡したら rvalue の参照として扱える様なテンプレート関数を書きたいです。
+
+ここで出てくるのがUniversal参照です。Universal参照ではテンプレート引数 =T= に対して =T&&= と書くことで、 =T= が lvalue の場合は lvalue の参照に、 =T= が rvalue の場合は rvalue の参照として扱われます。
+
+なお、Universal参照はテンプレートのみではなく、C++11で意味の変わった =auto= でも同様に使うことができます。
 
 * パーフェクトフォワーディング
 
@@ -273,44 +279,152 @@ std::moveがあれば　な・ん・で・も 1 2 9!
 ゆっくりしていってね!!!
 #+end_quote
 
+#+NAME: PERFECT_FORWARDING
 #+BEGIN_SRC c++
-template<typename T>
-void universal_pass(T&& a) {
-  print_if_ref(a);
-}
+  template<typename T>
+  void universal_pass(T&& a) {
+    print_if_ref(a); // そのまま渡す
+  }
 
-template<typename T>
-void move_pass(T&& a) {
-  print_if_ref(std::move(a));
-}
+  template<typename T>
+  void move_pass(T&& a) {
+    print_if_ref(std::move(a)); // std::moveで渡す
+  }
 
-template<typename T>
-void perfect_forwarding_pass(T&& a) {
-  print_if_ref(std::forward<T>(a));
-}
+  template<typename T>
+  void perfect_forwarding_pass(T&& a) {
+    print_if_ref(std::forward<T>(a)); // std::forwardで渡す
+  }
 
+  void perfect_forward() {
+    int chirno = 9;
+    // そのまま渡す。仮引数は lvalue として解釈される。
+    universal_pass(chirno); // -> lvalue ref
+    universal_pass(9); // -> lvalue ref
 
-void universal() {
-  int chirno = 9;
-  universal_pass(chirno);
-  universal_pass(9);
-}
+    // std::move で渡す。std::moveでは rvalue の参照にキャストするので、rvalueとして渡される。
+    move_pass(chirno); // -> rvalue ref
+    move_pass(9); // -> rvalue ref
 
-void move() {
-  int chirno = 9;
-  move_pass(chirno);
-  move_pass(9);
-}
-void perfect_forward() {
-  int chirno = 9;
-  perfect_forwarding_pass(chirno);
-  perfect_forwarding_pass(9);
-}
+    // std::forward で渡す。受け取った変数が lvalue の参照か rvalue の参照かに応じて適切に関数に渡すことができる。
+    perfect_forwarding_pass(chirno); // -> lvalue ref
+    perfect_forwarding_pass(9); // -> rvalue ref
+  }
 #+END_SRC
 
-** COMMENT TODO 解説
+** 解説
 
-* COMMENT TODO まとめ
+さて、ついにタイトルにもある perfect forwarding (完全転送) が出てきました。
+
+Universal参照で受け取った、 lvalue か rvalue のどちらの参照かわからない変数を別の関数に渡す場合はどうしたら良いでしょうか。そのまま渡せば良い様な気もしますが、仮引数は lvalue として扱われてしまうため、 rvalue の参照を受け取ったときも lvalue として渡してしまいますし、じゃあ std::move で渡せば良いかというと、今度は rvalue の参照にキャストしてしまうので lvalue の参照を受け取った場合でも rvalue の参照として渡してしまいます。
+
+ここで出てくるのが =std::forward= です。 =std::forward= は =T= の値を見て上手い具合にキャストをしてくれるので、受け取った変数が lvalue か rvalue のどちらの参照なのかに応じて、適切に渡すことができます。なお、 =std::forward= の中身はテンプレートの特殊化で頑張って実装している様です。
+
+* まとめ
+
+#+begin_quote
+もうバカでいいわよ！知らないっ！
+#+end_quote
+
+* COMMENT Appendix
+
+** Motivation of rvalue reference
+
+#+BEGIN_SRC C++ :noweb yes :results output replace
+  <<PREVENT_COPY>>
+
+  int main(int argc, char *argv[])
+  {
+    copy_and_move();
+    return 0;
+  }
+
+#+END_SRC
+
+#+RESULTS:
+: default constructor
+: 7f8aa9405a80
+: copy constructor
+: 7f8aa9405a80
+: 7f8aa9405a90
+: move constructor
+: 0
+: 7f8aa9405a90
+: 7f8aa9405a80
+
+** std::move
+  :PROPERTIES:
+  :header-args: :C :flags "-std=c++17"
+  :END:
+
+#+BEGIN_SRC C++ :noweb yes :results output replace :includes "<iostream> <algorithm>"
+  <<PREVENT_COPY>>
+  <<MOVE>>
+
+  int main(int argc, char *argv[])
+  {
+    copy_and_move2();
+    return 0;
+  }
+
+#+END_SRC
+
+#+RESULTS:
+: default constructor
+: 7fbffcc05a80
+: copy constructor
+: 7fbffcc05a80
+: 7fbffcc05a90
+: move constructor
+: 0
+: 7fbffcc05a90
+: 7fbffcc05a80
+
+** Universal references
+  :PROPERTIES:
+  :header-args: :C :flags "-std=c++17"
+  :END:
+
+#+BEGIN_SRC C++ :noweb yes :results output replace :includes "<iostream> <algorithm>"
+  <<UNIVERSAL_REFERENCE>>
+
+  int main(int argc, char *argv[])
+  {
+    universal();
+    return 0;
+  }
+
+#+END_SRC
+
+#+RESULTS:
+: lvalue ref
+: rvalue ref
+: lvalue ref
+
+
+** Perfect forwarding
+  :PROPERTIES:
+  :header-args: :flags "-std=c++17"
+  :END:
+
+#+BEGIN_SRC C++ :noweb yes :results output replace :includes "<iostream> <algorithm>"
+<<UNIVERSAL_REFERENCE>>
+<<PERFECT_FORWARDING>>
+
+  int main(int argc, char *argv[])
+  {
+    perfect_forward();
+    return 0;
+  }
+#+END_SRC
+
+#+RESULTS:
+: lvalue ref
+: lvalue ref
+: rvalue ref
+: rvalue ref
+: lvalue ref
+: rvalue ref
 
 * COMMENT Omitted 
 

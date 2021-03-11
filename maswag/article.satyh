@@ -42,7 +42,7 @@ let article = '<
 
     +subsection ?:(`コメント`) {コメント} <
     +p {
-      この記事はC++11のパーフェクトフォワーディングについての記事です。これを読んで何かがわかるのかは良くわからないですけど生温かい視線で見ていただけると幸いです。
+      この記事はC++11のパーフェクトフォワーディングについての記事です。これを読んで何かがわかるのかは良くわからないですけど生温かい視線で見ていただけると幸いです。真面目に理解しようと思ったら別の記事を読んだ方が良いです。
     }
     >
     >
@@ -137,9 +137,6 @@ let article = '<
       ここでは以下の \code(`Bus`); クラスを使います。
     }
     +code(`
-    #include <iostream>
-    #include <algorithm>
-
     class Bus {
     private:
       char * ptr; // C++11以降であればスマートポインタを使うべき
@@ -184,7 +181,7 @@ let article = '<
     +code(`
     void copy_and_move() {
       Bus koumakan = Bus(); // 内部で charが3回newされる
-      koumakan.print_ptr(); // TODO: 出力を書く
+      koumakan.print_ptr(); // -> 7f8aa9405a80
     `);
     +quote<
     +p {
@@ -193,8 +190,8 @@ let article = '<
 
     +code(`
     Bus hakugyokurou = Bus(static_cast<const Bus&>(koumakan)); // コピーコンストラクタ。static_castは不要
-    koumakan.print_ptr(); // TODO: 出力を書く
-    hakugyokurou.print_ptr(); // TODO: 出力を書く
+    koumakan.print_ptr(); // -> 7f8aa9405a80
+    hakugyokurou.print_ptr(); // -> 7f8aa9405a90
     `);
     +quote<
     +p {
@@ -216,9 +213,11 @@ let article = '<
     }>
 
     +code(`
-      koumakan.print_ptr(); // koumakan.ptr は nullptr なので 0が出力される
-      hakugyokurou.print_ptr();  // TODO: 出力を書く
-      yakumo.print_ptr(); // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
+      // koumakan.ptr は nullptr なので 0が出力される
+      koumakan.print_ptr(); // -> 0
+      hakugyokurou.print_ptr(); // -> 7f8aa9405a90
+      // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
+      yakumo.print_ptr();  // -> 7f8aa9405a80
     }
     `);
     +subsection ?:(`解説-2`) {解説} <
@@ -239,10 +238,6 @@ let article = '<
       std::moveがあれば　な・ん・で・も 1 2 9!
     }>
 
-    +subsection ?:(`解説-3`) {解説} <
-    +p {
-      前述の例では \code(`static=cast<Bus&&>(koumakan)`); と書くことで \code(`koumakan`); の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの \code(`std::move`); です。結局やっていることは \code(`static_cast`); と同じですが、 \code(`std::move`); を使うことで前述の例を以下の様に短かく書くことができます。
-    }
     +code(`
     void copy_and_move2() {
       Bus koumakan = Bus(); // 内部で charが3回newされる
@@ -257,6 +252,10 @@ let article = '<
       yakumo.print_ptr(); // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
     }
     `);
+    +subsection ?:(`解説-3`) {解説} <
+    +p {
+      前述の例では \code(`static=cast<Bus&&>(koumakan)`); と書くことで \code(`koumakan`); の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの \code(`std::move`); です。結局やっていることは \code(`static_cast`); と同じですが、 \code(`std::move`); を使うことで前述の例を以下の様に短かく書くことができます。
+    }
     >
     >
     +section ?:(`universal参照-みんな大好きテンプレート`) {Universal参照: みんな大好きテンプレート} <
@@ -275,26 +274,36 @@ let article = '<
     }>
 
     +code(`
-    #include <iostream>
-    #include <type_traits>
-
     template<typename T>
-    void print_if_ref(T&&) { // T が lvalue (参照) の場合は T&& は lvalue 参照に、T が rvalue (参照) の場合は T&& は rvalue 参照になる
-      if (std::is_lvalue_reference<T&&>::value) {
+    void print_if_ref(T&&) { // T 自体は lvalue 参照か 参照ではない型になる。今回の例では T は int& か intのどちらかになる
+      // この static_assert の中身はC++17が必要
+      static_assert(std::disjunction<std::negation<std::is_reference<T>>, std::is_lvalue_reference<T>>::value, "T is not an rvalue reference."); // T自体は参照ならばつねに lvalue の参照になる
+      if (std::is_lvalue_reference<T&&>::value) { // T が int& の場合、 T&& は int& になる (T&&& -> T& と私は覚えた)
         std::cout << "lvalue ref" << std::endl;
-      } else if(std::is_rvalue_reference<T&&>::value) {
+      } else if(std::is_rvalue_reference<T&&>::value) { // T が int の場合、 T&& は int&& になる
         std::cout << "rvalue ref" << std::endl;
       }
     }
 
     void universal() {
       int chirno = 9;
-      print_if_ref(chirno); // lvalue ref
-      print_if_ref(9); // rvalue ref
+      print_if_ref(chirno); // -> lvalue ref
+      print_if_ref(9); // -> rvalue ref
       int& chirno_ref = chirno;
-      print_if_ref(chirno_ref); // lvalue ref
+      print_if_ref(chirno_ref); // -> lvalue ref
     }
     `);
+    +subsection ?:(`解説-4`) {解説} <
+    +p {
+      みんな大好きテンプレート、 rvalue 参照とはどう組み合わせれば良いでしょうか？より具体的には、 lvalue を渡したら lvalue の参照として、rvalue を渡したら rvalue の参照として扱える様なテンプレート関数を書きたいです。
+    }
+    +p {
+      ここで出てくるのがUniversal参照です。Universal参照ではテンプレート引数 \code(`T`); に対して \code(`T&&`); と書くことで、 \code(`T`); が lvalue の場合は lvalue の参照に、 \code(`T`); が rvalue の場合は rvalue の参照として扱われます。
+    }
+    +p {
+      なお、Universal参照はテンプレートのみではなく、C++11で意味の変わった \code(`auto`); でも同様に使うことができます。
+    }
+    >
     >
     +section ?:(`パーフェクトフォワーディング`) {パーフェクトフォワーディング} <
     +quote<
@@ -314,37 +323,52 @@ let article = '<
     +code(`
     template<typename T>
     void universal_pass(T&& a) {
-      print_if_ref(a);
+      print_if_ref(a); // そのまま渡す
     }
 
     template<typename T>
     void move_pass(T&& a) {
-      print_if_ref(std::move(a));
+      print_if_ref(std::move(a)); // std::moveで渡す
     }
 
     template<typename T>
     void perfect_forwarding_pass(T&& a) {
-      print_if_ref(std::forward<T>(a));
+      print_if_ref(std::forward<T>(a)); // std::forwardで渡す
     }
 
-
-    void universal() {
-      int chirno = 9;
-      universal_pass(chirno);
-      universal_pass(9);
-    }
-
-    void move() {
-      int chirno = 9;
-      move_pass(chirno);
-      move_pass(9);
-    }
     void perfect_forward() {
       int chirno = 9;
-      perfect_forwarding_pass(chirno);
-      perfect_forwarding_pass(9);
+      // そのまま渡す。仮引数は lvalue として解釈される。
+      universal_pass(chirno); // -> lvalue ref
+      universal_pass(9); // -> lvalue ref
+
+      // std::move で渡す。std::moveでは rvalue の参照にキャストするので、rvalueとして渡される。
+      move_pass(chirno); // -> rvalue ref
+      move_pass(9); // -> rvalue ref
+
+      // std::forward で渡す。受け取った変数が lvalue の参照か rvalue の参照かに応じて適切に関数に渡すことができる。
+      perfect_forwarding_pass(chirno); // -> lvalue ref
+      perfect_forwarding_pass(9); // -> rvalue ref
     }
     `);
+    +subsection ?:(`解説-5`) {解説} <
+    +p {
+      さて、ついにタイトルにもある perfect forwarding (完全転送) が出てきました。
+    }
+    +p {
+      Universal参照で受け取った、 lvalue か rvalue のどちらの参照かわからない変数を別の関数に渡す場合はどうしたら良いでしょうか。そのまま渡せば良い様な気もしますが、仮引数は lvalue として扱われてしまうため、 rvalue の参照を受け取ったときも lvalue として渡してしまいますし、じゃあ std::move で渡せば良いかというと、今度は rvalue の参照にキャストしてしまうので lvalue の参照を受け取った場合でも rvalue の参照として渡してしまいます。
+    }
+    +p {
+      ここで出てくるのが \code(`std::forward`); です。 \code(`std::forward`); は \code(`T`); の値を見て上手い具合にキャストをしてくれるので、受け取った変数が lvalue か rvalue のどちらの参照なのかに応じて、適切に渡すことができます。なお、 \code(`std::forward`); の中身はテンプレートの特殊化で頑張って実装している様です。
+    }
+    >
+    >
+    +section ?:(`まとめ`) {まとめ} <
+    +quote<
+    +p {
+      もうバカでいいわよ！知らないっ！
+    }>
+
     >
     >
 >
