@@ -1,9 +1,9 @@
 (version "0.0.2")
 (library
-  (name "yabai2021S")
+  (name "yabai2021W")
   (version "0.0.1")
   (sources ())
-  (opam "yabai2021s.opam")
+  (opam "yabai2021w.opam")
   (dependencies (
       (base ())
       (class-yabaitech ()))))
