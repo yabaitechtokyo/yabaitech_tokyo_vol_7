@@ -6,6 +6,21 @@ module Zeptometer : sig
 
 end = struct
 
-  let article = '<>
+  let article = '<
+    +chapter ?:(`zpt-article`)(|
+      bibliography  = [];
+      title         = {炒め物のイディオム};
+      author        = {zeptometer};
+      title-for-toc = None;
+      subtitle      = None;
+    |)<
+      +section{はじめに}<
+        +p{
+          コロナの影響でリモート勤務になってから1年、家にひきこもるのがごくあたりまえの生活になりました。
+          同様の状況の方はそれなりにいると思います。皆さんはごはんをどうすませていますか？
+        }
+      >
+    >
+  >
 
 end
