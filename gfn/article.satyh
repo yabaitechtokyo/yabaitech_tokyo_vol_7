@@ -20,6 +20,30 @@ end = struct
       pages = (1, 12);
       year = 1996;
     |));
+    (`Honda1993`, Article(|
+      % https://doi.org/10.1007/3-540-57208-2_35
+      author = {| Kohei Honda |};
+      title = {Types for dyadic interaction};
+      journal = {Lecture Notes in Computer Science (CONCUR’93)};
+      volume = Some(715);
+      number = None;
+      pages = (509, 523);
+      year = 1993;
+    |));
+    (`HondaYoshidaCarbone2008`, InProceedings(|
+      % https://doi.org/10.1145/1328438.1328472
+      author = {| Kohei Honda | Nobuko Yoshida | Marco Carbone |};
+      title = {Multiparty asynchronous session types};
+      booktitle = {
+        Proceedings of the 35th Annual ACM SIGPLAN-SIGACT Symposium on
+        Principles of Programming Languages
+      };
+      series = Some({POPL’08});
+      volume = None;
+      number = None;
+      pages = (273, 284);
+      year = 2008;
+    |));
     (`LindahlSagonas2006`, InProceedings(|
       % https://it.uu.se/research/group/hipe/papers/succ_types.pdf
       author = {| Tobias Lindahl | Konstantinos Sagonas |};
@@ -33,6 +57,30 @@ end = struct
       pages = (167, 178);
       year = 2006;
     |));
+    (`Caramel`, WebSite(|
+      author = {| Leandro Ostera et al. |};
+      title = {Caramel};
+      url = `https://github.com/AbstractMachinesLab/caramel`;
+      year = 2020;
+    |));
+    (`Hamler`, WebSite(|
+      author = {| Feng Lee et al. |};
+      title = {Hamler};
+      url = `https://github.com/hamler-lang/hamler`;
+      year = 2019;
+    |));
+    (`Alpaca`, WebSite(|
+      author = {| Jeremy Pierre et al. |};
+      title = {Alpaca};
+      url = `https://github.com/alpaca-lang/alpaca`;
+      year = 2016;
+    |));
+    (`Gleam`, WebSite(|
+      author = {| Louis Pilfold et al. |};
+      title = {Gleam};
+      url = `https://github.com/gleam-lang/gleam`;
+      year = 2018;
+    |));
     (`RossbergRussoDreyer2014`, Article(|
       author = {| Andreas Rossberg | Claudio Russo | Derek Dreyer |};
       title = {F-ing modules};
@@ -41,7 +89,7 @@ end = struct
       number = Some({5});
       pages = (529, 607);
       year = 2014;
-    |))
+    |));
   ]
 
   let article = '<
@@ -278,7 +326,10 @@ end = struct
             }：
 
             \listing{
-              * 既にErlangで書かれているプログラムをSesterlから利用しやすくするために，わかりやすいFFIを実現したい．
+              * 既にErlangで書かれているプログラムをSesterlから利用しやすくするために，
+                かつ既にErlangで書かれているプログラムを段階的にSesterlに移植していけるように，わかりやすいFFIを実現したい．
+
+              * Erlangらしいアーキテクチャをそのまま書けるようにしたい．
                 特にOTPライブラリはそれ自体には手を加えずにSesterl側から実装をできるだけ自然な形で利用できるようにしたい．
 
               * 函数の引数がやたらと増えても，どの引数がどうやって与えられるのかをなるべく捉えやすいようにしたい．
@@ -292,29 +343,51 @@ end = struct
 
               * むやみに通信を起こすプログラムができあがってしまうスパゲティ化を防ぐために，
                 純粋な計算と並行処理が発生する計算とを型の水準で区別できるようにしたい．
+                また，可能なら\dfn{session type} \cite[`Honda1993`];や
+                \dfn{multiparty session type} \cite[`HondaYoshidaCarbone2008`];のように
+                “送受信の振舞い” も型の水準で表現できるようにしたい．
             }%
           }
           +p{
             こうした目的設定をうけて，要件を以下のようにすることとしました：
 
             \listing{
-              * FFIでの函数定義や使用のわかりやすさのため，OCamlやHaskellのような部分適用は導入せず，
+              * 基本的にはML風の言語設計とする．
+
+              * FFIでの函数定義や使用のわかりやすさのため，ML系言語やHaskellのような部分適用は導入せず，
                 函数はアリティをもつことにする．
 
               * 函数の引数の形式としては通常の引数のほかにラベルつき必須引数とラベルつきオプション引数を用意する．
 
               * OTPライブラリを型の水準で自然に定式化するために，ファンクタをもつモジュールシステムを導入する．
 
-              * 通信が発生する計算はモナドでくるむようにする．
-
-              * \REMAINS{}
+              * 通信が発生する計算はモナドでくるむようにし，
+                各並行処理ないしプロセスは “自分がどんな型のメッセージを受け取れるか” の情報をトラックする．
+                これを用いて `spawn`，`!`，`receive` 相当の言語機能に型をつける．
             }%
           }
         >
         +subsection{他のAltErlang言語}<
           +p{
-            やはり人間が多くいれば皆似たことを考えるのか，
-            同様の動機でErlangに型をつけようとして創られた言語はSesterl以外にもいくつかあります．
+            やはり人間皆似たことを考えるのか，
+            同様の動機でErlangに型をつけようとして創られた言語はSesterl以外にもいくつかあります：
+
+            \listing{
+            * \dfn{Alpaca} \cite[`Alpaca`];
+              ** OCamlやElmに近い構文と意味論をもち，
+                 各プロセスがどんな型のメッセージを受け取れるかの情報を静的に検査することができます．
+            * \dfn{Gleam} \cite[`Gleam`];
+              ** Rust風の構文と意味論をもつAltErlangです．函数はアリティをもち，ラベルつき引数などの機能ももっています．
+                 メッセージにはコア言語では型をつけない方針で，ライブラリの水準で型つけを実現する方針のようです．
+                 2021年11月現在非常に精力的に開発されており，JavaScriptバックエンドも実装されました．
+            * \dfn{Caramel} \cite[`Caramel`];
+              ** OCaml互換の構文で開発されているものです．
+                 PIDはメッセージの型をパラメータにとりますが，モナドによる純粋・並行の区別はないようです．
+            * \dfn{Hamler} \cite[`Hamler`];
+              ** Haskell風の構文と意味論をもつAltErlangです．型クラスを備えていたりします．
+                 並行処理に関するモナドがありますが，メッセージの型をパラメータにとるわけではないようです．
+                 また，OTPライブラリのビヘイビアは型クラスで定式化されているようです．
+            }%
           }
           +p{
             \REMAINS{他のBEAM言語の紹介と，それらでは不満足な点}
