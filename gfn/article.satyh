@@ -424,7 +424,9 @@ end = struct
                   open Stdlib
 
                   val fact(n) =
-                    let rec aux(acc, n) = if n <= 0 then acc else aux(n * acc, n - 1) in
+                    let rec aux(acc, n) =
+                      if n <= 0 then acc else aux(n * acc, n - 1)
+                    in
                     aux(1, n)
 
                   val sum(ns) = List.foldl(fun(acc, n) -> acc + n end, 0, ns)
@@ -436,28 +438,6 @@ end = struct
                     | {[], []}                 -> true
                     | {_ :: xtail, _ :: ytail} -> have_same_length(xtail, ytail)
                     | _                        -> false
-                    end
-                end
-              ```);%
-              \d-code(```
-                module BinTree :> sig
-                  type t :: (o) -> o
-                  val leaf<$a> : fun($a) -> t<$a>
-                  val node<$a> : fun($a, t<$a>, t<$a>) -> t<$a>
-                  val tree_size<$a> : fun(t<$a>) -> int
-                end = struct
-                  type t<$a> =
-                    | Empty
-                    | Node($a, t<$a>, t<$a>)
-
-                  val leaf(x) = Node(x, Empty, Empty)
-
-                  val node(x, tree1, tree2) = Node(x, tree1, tree2)
-
-                  val rec tree_size(tree) =
-                    case tree of
-                    | Empty                 -> 0
-                    | Node(_, tree1, tree2) -> 1 + tree_size(tree1) + tree_size(tree2)
                     end
                 end
               ```);%
@@ -481,7 +461,7 @@ end = struct
                 * ファイルの先頭に
                   \no-break-latin{`require` ${X}}
                   と書くことで同一パッケージ中の別ファイルであるモジュール ${X} を読み込める．
-                  別パッケージが提供するモジュールは，設定ファイル `sesterl.yaml` に記載しておくと
+                  依存する別パッケージが提供するモジュールは，設定ファイルに記載しておくと
                   どこでも使えるようになる．
                   例えば上記の例では `Stdlib` が別のパッケージに由来するモジュールで，
                   `open Stdlib` で中身が取り出されているので少しわかりにくいが，
@@ -546,6 +526,35 @@ end = struct
                   \no-break-latin{`val have_same_length<$a, $b>(`${\ldots}`) =` ${\ldots}}
                   のように実装中の型註釈でもそのように書くことができる．
               }%
+            }
+          >
+          +subsubsection{代数的データ型とモジュールによる抽象化}<
+            +p{
+              これも以下の例でほぼ伝わるかと思います：
+              \d-code(```
+                module BinTree :> sig
+                  type t :: (o) -> o
+                  val leaf<$a> : fun($a) -> t<$a>
+                  val node<$a> : fun($a, t<$a>, t<$a>) -> t<$a>
+                  val size<$a> : fun(t<$a>) -> int
+                end = struct
+                  type t<$a> =
+                    | Empty
+                    | Node($a, t<$a>, t<$a>)
+
+                  val leaf(x) =
+                    Node(x, Empty, Empty)
+
+                  val node(x, tree1, tree2) =
+                    Node(x, tree1, tree2)
+
+                  val rec size(tree) =
+                    case tree of
+                    | Empty                 -> 0
+                    | Node(_, tree1, tree2) -> 1 + size(tree1) + size(tree2)
+                    end
+                end
+              ```);%
             }
           >
           +subsubsection{列多相によるレコード}<
