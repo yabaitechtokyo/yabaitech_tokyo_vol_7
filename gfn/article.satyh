@@ -412,28 +412,22 @@ end = struct
         +subsection{基礎的な言語機能}<
           +subsubsection{基本的な構文}<
             +p{
-              まず基本的な構文は以下の例で一目瞭然かと思います：
+              まず基本的な構文は以下のような例でわかると思います：
 
               \d-code(```
                 module Calc :> sig
                   val fact : fun(int) -> int
                   val sum : fun(list<int>) -> int
-                  val id<$a> : fun($a) -> $a
                   val swap<$a, $b> : fun({$a, $b}) -> {$b, $a}
                   val have_same_length<$a, $b> : fun(list<$a>, list<$b>) -> bool
                 end = struct
                   open Stdlib
 
                   val fact(n) =
-                    let rec aux(acc, n) =
-                      if n <= 0 then acc else aux(n * acc, n - 1)
-                    in
+                    let rec aux(acc, n) = if n <= 0 then acc else aux(n * acc, n - 1) in
                     aux(1, n)
 
-                  val sum(ns) =
-                    List.foldl(fun(acc, n) -> acc + n end, 0, ns)
-
-                  val id(x) = x
+                  val sum(ns) = List.foldl(fun(acc, n) -> acc + n end, 0, ns)
 
                   val swap({x, y}) = {y, x}
 
@@ -442,6 +436,28 @@ end = struct
                     | {[], []}                 -> true
                     | {_ :: xtail, _ :: ytail} -> have_same_length(xtail, ytail)
                     | _                        -> false
+                    end
+                end
+              ```);%
+              \d-code(```
+                module BinTree :> sig
+                  type t :: (o) -> o
+                  val leaf<$a> : fun($a) -> t<$a>
+                  val node<$a> : fun($a, t<$a>, t<$a>) -> t<$a>
+                  val tree_size<$a> : fun(t<$a>) -> int
+                end = struct
+                  type t<$a> =
+                    | Empty
+                    | Node($a, t<$a>, t<$a>)
+
+                  val leaf(x) = Node(x, Empty, Empty)
+
+                  val node(x, tree1, tree2) = Node(x, tree1, tree2)
+
+                  val rec tree_size(tree) =
+                    case tree of
+                    | Empty                 -> 0
+                    | Node(_, tree1, tree2) -> 1 + tree_size(tree1) + tree_size(tree2)
                     end
                 end
               ```);%
