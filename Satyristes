@@ -6,4 +6,5 @@
   (opam "yabai2021w.opam")
   (dependencies (
       (base ())
-      (class-yabaitech ()))))
+      (class-yabaitech ())
+      (easytable ()))))
