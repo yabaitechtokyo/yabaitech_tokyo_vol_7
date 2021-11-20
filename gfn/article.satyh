@@ -764,6 +764,24 @@ end = struct
             }
           >
           +subsubsection{FFI}<
+            +p{
+              FFIは特にErlang製の既存実装を再利用しやすくしたり
+              Erlang製の実装からSesterl製の実装への段階的な移行を容易にしたりするために是非ともこだわりたい機能でした．
+              以下のような簡単な記述でFFIが実現できます：
+
+              \d-code(````
+                val binary_to_chars : fun(binary) -> list<char> = external 1 ```
+                  binary_to_chars(Bin) ->
+                      erlang:binary_to_list(Bin).
+                ```
+              ````);%
+
+              すなわち，文字列リテラルでErlangの函数定義が直接書け，それに型をつけてSesterl側から使うことができます．
+              `external` の後ろにくる自然数はアリティで，コンパイラが `-export` の内容を出力するのに必要です\footnote{
+                文字列リテラル内のErlangのコードを構文解析するようにすればアリティを書く必要はないのですが，
+                現状ではErlangコードは構文解析せず出力するErlangソースコードにそのまま貼りつける仕組みになっています．
+              }．
+            }
             +p{\REMAINS{FFI}}
           >
           +subsubsection{並行処理}<
