@@ -419,7 +419,7 @@ end = struct
                   val fact : fun(int) -> int
                   val sum : fun(list<int>) -> int
                   val id<$a> : fun($a) -> $a
-                  val first<$a, $b> : fun({$a, $b}) -> $a
+                  val swap<$a, $b> : fun({$a, $b}) -> {$b, $a}
                   val have_same_length<$a, $b> : fun(list<$a>, list<$b>) -> bool
                 end = struct
                   open Stdlib
@@ -435,22 +435,55 @@ end = struct
 
                   val id(x) = x
 
-                  val first({x, _}) = x
+                  val swap({x, y}) = {y, x}
 
-                  val have_same_length<$a, $b>(xs : list<$a>, ys : list<$b>) : bool =
-                    List.length(xs) == List.length(ys)
-
+                  val rec have_same_length<$a, $b>(xs : list<$a>, ys : list<$b>) : bool =
+                    case {xs, ys} of
+                    | {[], []}                 -> true
+                    | {_ :: xtail, _ :: ytail} -> have_same_length(xtail, ytail)
+                    | _                        -> false
+                    end
                 end
               ```);%
+              \d-code(```
+                require Calc
+
+                module SomeModule = struct
+                  val main() = Calc.sum([3, 1, 4, 1, 5, 9, 2])
+                end
+              ```);
 
               構文はおおよそML系のものを蹈襲していますが，以下のような特徴があります：
 
-              \listing{
+              \listing?:(true){
                 * ソースコードのファイルは1つのモジュールの束縛
                   `module` ${X} `= struct` ${\ldots} `end`
                   であり，シグネチャが必要ならモジュール名の直後に
                   `:> sig` ${\ldots} `end`
                   と追記することができる．
+
+                * ファイルの先頭に
+                  \no-break-latin{`require` ${X}}
+                  と書くことで同一パッケージ中の別ファイルであるモジュール ${X} を読み込める．
+                  別パッケージが提供するモジュールは，設定ファイル `sesterl.yaml` に記載しておくと
+                  どこでも使えるようになる．
+                  例えば上記の例では `Stdlib` が別のパッケージに由来するモジュールで，
+                  `open Stdlib` で中身が取り出されているので少しわかりにくいが，
+                  `Stdlib.List.foldl` が使われている．
+
+                * ストラクチャのメンバとなる（つまり `struct` ${\ldots} `end` 直下の）大域的な束縛は
+                  `val` で始め，函数内の局所的な束縛は `let` で行なう．
+                  後者は函数のほかに
+                  \no-break-latin{`let n = 42 in` ${\ldots}}
+                  のように函数でない値も当然束縛できるし，またパターンも
+                  \no-break-latin{`let {x, _} = pair in` ${\ldots}}
+                  のように使えるが，前者は函数しか束縛できない\footnote{
+                    これは後述しますがErlangのモジュール中では函数しか定義できないことに由来します．
+                  }．（相互）再帰函数を定義したい場合は
+                  `val rec` \no-break-latin{${f_1}`(`${\ldots}`) =` ${e_1}}
+                  `and` ${\ldots}
+                  `and` \no-break-latin{${f_n}`(`${\ldots}`) =` ${e_n}}
+                  のように記述する．`let` の場合も同様．
 
                 * 前述の通り函数はCurry化されないため，函数の型は
                   （一般的な \no-break-latin{${\tau'} `->` ${\tau}} などではなく）
@@ -476,16 +509,26 @@ end = struct
                 * 型註釈を書かずともlet多相での主要型を推論してくれる．
                   再帰函数については，型註釈を全ての引数と戻り値について書いていれば多相再帰も受理する．
 
-                * 直積型は `{`${\tau_1}`,` ${\ldots}`,` ${\tau_n}`}` の形で書く．
-                  大きさが1の直積型 `{`${\tau}`}` もいくつかの用途のために用意されている．
+                * 直積型は
+                  \no-break-latin{`{`${\tau_1}`,` ${\ldots}`,` ${\tau_n}`}`}
+                  の形で書き，組（タプル）はErlangと同様に
+                  \no-break-latin{`{`${e_1}`,` ${\ldots}`,` ${e_n}`}`}
+                  の形で書く．
+                  1要素だけの直積型 `{`${\tau}`}` と組 `{`${e}`}` もいくつかの用途のために用意されている．
+
+                * リストの式は
+                  \no-break-latin{`[`${e_1}`,` ${\ldots}`,` ${e_n}`]`}
+                  とコンマ区切りで書くほか，通常のいわゆるコンスセルの書き方
+                  \no-break-latin{${e_1} `::` ${e_2} `::` ${\ldots} `::` ${e_n} `:: []`}
+                  も可能．パターンでも同様．
 
                 * 函数定義や函数抽象の引数で（単一の変数に限らず）パターンを使うことができる．
 
                 * 型変数は `$a` のようにドル記号が接頭辞としてつく．
                   全称量化は `<$a, $b>` のようにコンマ区切りで型変数を並べて `<` と `>` で括り，
                   束縛される函数名の直後に書く．シグネチャ中の宣言だけでなく，
-                  `have_same_length<$a, $b>` ${\ldots} のように
-                  型註釈でもそのように書くことができる．
+                  \no-break-latin{`val have_same_length<$a, $b>(`${\ldots}`) =` ${\ldots}}
+                  のように実装中の型註釈でもそのように書くことができる．
               }%
             }
           >
@@ -497,6 +540,9 @@ end = struct
           >
           +subsubsection{FFI}<
             +p{\REMAINS{FFI}}
+          >
+          +subsubsection{並行処理}<
+            +p{\REMAINS{並行処理}}
           >
         >
         +subsection{SesterlをOTP Design Principlesに適合させるために必要だった言語機能たち}<
