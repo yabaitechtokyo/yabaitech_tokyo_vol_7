@@ -10,6 +10,11 @@ module Gfn : sig
 
 end = struct
 
+  let-inline ctx \no-break-latin it =
+    let pads = (0pt, 0pt, 0pt, 0pt) in
+    let deco _ _ _ _ = [] in
+    script-guard Latin (inline-frame-outer pads deco (read-inline ctx it))
+
   let bibliography = [
     (`GasterJones1996`, Article(|
       author = {| Benedict R. Gaster | Mark P. Jones |};
@@ -193,7 +198,7 @@ end = struct
             例えば階乗函数 `fact` や整数のリストを受け取りその総和を返す函数 `sum` は以下のように書けます：
 
             \d-code(```
-              -module(sample_module).
+              -module(calc).
               -export([fact/1, sum/1]).
 
               fact(N) ->
@@ -253,10 +258,10 @@ end = struct
               -module(some_external_module).
               -export([main/0]).
 
-              main() ->
-                  sample_module:fact(6).
+              main() -> calc:fact(6).
             ```);%
           }
+          +p{\REMAINS{アトムについて}}
         >
         +subsection{並行処理の定式化}<
           +p{
@@ -322,7 +327,8 @@ end = struct
             さて，前節では単に型をつけたい旨を説明しましたが，
             自分が何を欲しがっているのかという目的の詳細を詰めると以下のようになりました\footnote{
               実際には開発当初から明瞭な言語化をしていたわけではなく，
-              おおよそこうしたいと思って設計・実装しているうちに煮詰まってきた目的と要件ではあります．
+              おおよそこうしたいと思って設計・実装しているうちに少しずつ煮詰まってきた目的と要件ではあります．
+              今後の進展によってさらに変わることも勿論あるだろうと思います．
             }：
 
             \listing{
@@ -403,8 +409,95 @@ end = struct
         >
       >
       +section{Sesterlの言語設計}<
-        +subsection{基本的な構文}<
-          +p{\REMAINS{定義，ストラクチャ，FFIなど}}
+        +subsection{基礎的な言語機能}<
+          +subsubsection{基本的な構文}<
+            +p{
+              まず基本的な構文は以下の例で一目瞭然かと思います：
+
+              \d-code(```
+                module Calc :> sig
+                  val fact : fun(int) -> int
+                  val sum : fun(list<int>) -> int
+                  val id<$a> : fun($a) -> $a
+                  val first<$a, $b> : fun({$a, $b}) -> $a
+                  val have_same_length<$a, $b> : fun(list<$a>, list<$b>) -> bool
+                end = struct
+                  open Stdlib
+
+                  val fact(n) =
+                    let rec aux(acc, n) =
+                      if n <= 0 then acc else aux(n * acc, n - 1)
+                    in
+                    aux(1, n)
+
+                  val sum(ns) =
+                    List.foldl(fun(acc, n) -> acc + n end, 0, ns)
+
+                  val id(x) = x
+
+                  val first({x, _}) = x
+
+                  val have_same_length<$a, $b>(xs : list<$a>, ys : list<$b>) : bool =
+                    List.length(xs) == List.length(ys)
+
+                end
+              ```);%
+
+              構文はおおよそML系のものを蹈襲していますが，以下のような特徴があります：
+
+              \listing{
+                * ソースコードのファイルは1つのモジュールの束縛
+                  `module` ${X} `= struct` ${\ldots} `end`
+                  であり，シグネチャが必要ならモジュール名の直後に
+                  `:> sig` ${\ldots} `end`
+                  と追記することができる．
+
+                * 前述の通り函数はCurry化されないため，函数の型は
+                  （一般的な \no-break-latin{${\tau'} `->` ${\tau}} などではなく）
+                  \no-break-latin{`fun(`${\tau_1}`,` ${\ldots}`,` ${\tau_n}`) ->` ${\tau}}
+                  の形式であり，例えば
+                  \no-break-latin{`fun(`${\tau_1}`,` ${\tau_2}`) ->` ${\tau}}
+                  は
+                  \no-break-latin{`fun(`${\tau_1}`) -> fun(`${\tau_2}`) ->` ${\tau}}
+                  とは異なる型である．適用も例えば
+                  `List.foldl f i xs`
+                  ではなく
+                  `List.foldl(f, i, xs)`
+                  などと書く．やはり
+                  ${e}`(`${e_1}`,` ${e_2}`)`
+                  と
+                  ${e}`(`${e_1}`)(` ${e_2}`)`
+                  とは（具象構文としてだけでなく）抽象構文として異なる．
+
+                * 具象構文上型コンストラクタは前置で，例えば（`int list` ではなく）`list<int>` と記述する．
+                  複数の型引数がある場合は `result<int, error>` のようにコンマ区切り．
+                  高階の型コンストラクタはサポートしていない．
+
+                * 型註釈を書かずともlet多相での主要型を推論してくれる．
+                  再帰函数については，型註釈を全ての引数と戻り値について書いていれば多相再帰も受理する．
+
+                * 直積型は `{`${\tau_1}`,` ${\ldots}`,` ${\tau_n}`}` の形で書く．
+                  大きさが1の直積型 `{`${\tau}`}` もいくつかの用途のために用意されている．
+
+                * 函数定義や函数抽象の引数で（単一の変数に限らず）パターンを使うことができる．
+
+                * 型変数は `$a` のようにドル記号が接頭辞としてつく．
+                  全称量化は `<$a, $b>` のようにコンマ区切りで型変数を並べて `<` と `>` で括り，
+                  束縛される函数名の直後に書く．シグネチャ中の宣言だけでなく，
+                  `have_same_length<$a, $b>` ${\ldots} のように
+                  型註釈でもそのように書くことができる．
+              }%
+            }
+          >
+          +subsubsection{列多相によるレコード}<
+            +p{\REMAINS{レコード}}
+          >
+          +subsubsection{ラベルつき引数}<
+            +p{\REMAINS{ラベルつき必須/オプション引数}}
+          >
+          +subsubsection{FFI}<
+            +p{\REMAINS{FFI}}
+          >
         >
         +subsection{SesterlをOTP Design Principlesに適合させるために必要だった言語機能たち}<
           +p{\REMAINS{ファンクタ，static interpretation，future workとして再帰モジュール}}
@@ -415,6 +508,9 @@ end = struct
       >
       +section{ゲームサーバとクライアントの設計}<
         +p{\REMAINS{設計の話．これは直接Erlang/OTPで実装する場合でも全く同じ}}
+      >
+      +section{まとめ}<
+        +p{\REMAINS{まとめ}}
       >
     >
   >
