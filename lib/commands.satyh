@@ -1,0 +1,11 @@
+@require: base/image
+@require: base/inline
+@require: class-yabaitech/lib/url
+
+let-block ctx +image filename width =
+  let image = Image.of-jpeg filename in
+  let insert-image = Inline.of-image width image in
+  line-break true true ctx (inline-fil ++ insert-image ++ inline-fil)
+
+let-inline ctx \url uri =
+  ctx |> Url.embed-url uri
