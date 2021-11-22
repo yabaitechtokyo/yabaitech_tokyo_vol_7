@@ -20,6 +20,11 @@ end = struct
     inline-skip (get-font-size ctx *' 0.88)
 
 
+  let-block ctx +inline-image width height gf =
+    line-break true true ctx
+      (inline-fil ++ inline-graphics width height 0pt (gf ctx) ++ inline-fil)
+
+
   let bibliography = [
     (`GasterJones1996`, Article(|
       author = {| Benedict R. Gaster | Mark P. Jones |};
@@ -380,8 +385,61 @@ end = struct
                   end.
             ```);%
 
-            \REMAINS{並行に処理が走っている様子の図}
+            或るプロセス A で `concurrency_example:main()` が呼び出されて処理が開始する想定の実装です．
+            このプログラムでは，まず `PidA` を呼び出したプロセスのPIDに束縛し，
+            続いて新しいプロセス B を生成して `PidB` をその新しいプロセスのPIDに束縛します．
+            起動されたプロセス B では `sub/1` が A のPIDに適用され，`receive` 式を評価するところで待機します．
+            プロセス A は B に向かって返信用の自身のPIDと `42` という整数の組を送ります．
+            B はそれを受け取って `From` を A のPIDに，`N` を `42` に束縛し，
+            `moduleB:calculationB(42)` を評価します．
+            その間に A は `moduleA:calculationA(57)` を評価します．
+            B は計算が終わったらその結果を `From ! Answer` で A に送り返して終了します．
+            A も計算が終わったら自分のメールボックスを見て B からの返信が届いているかを確認し，
+            届いていたら（或いは待機して届いたら）`ResultB` にその結果を束縛し，
+            最終結果の `{ResultA, ResultB}` を `main()` の戻り値とします．
+            要するに，プロセス A が `moduleA:calculationA(42)` を，
+            プロセス B が `moduleB:calculationB(57)` をそれぞれ並行して処理するような実装になっているわけです．
+            この並行処理の動作の様子をシーケンス図に描き起こすと以下のような具合です：
           }
+          +inline-image(10cm)(6cm)(fun ctx (x, y) -> (
+            let xA = x +' 1cm in
+            let xB = x +' 8cm in
+            let yA1 = y +' 5cm in
+            let yA2 = y +' 0.5cm in
+            let yB1 = y +' 4cm in
+            let yB2 = y +' 1cm in
+            let txt pos it = [ draw-text pos (read-inline ctx it) ] in
+            let darr = Gr.dashed-arrow 1pt (5pt, 3pt, 0pt) Color.black 12pt 10pt 3pt in
+            let arr = Gr.arrow 1pt Color.black 12pt 10pt 3pt in
+            List.concat [
+              [
+                draw-text (xA -' 0.75cm, yA1 +' 0.25cm) (read-inline ctx {プロセス A});
+                stroke 1pt Color.black (Gr.line (xA, yA1) (xA, y));
+
+                draw-text (xB -' 0.75cm, yB1 +' 0.25cm) (read-inline ctx {プロセス B});
+                stroke 1pt Color.black (Gr.line (xB, yB1) (xB, yB2));
+              ];
+
+              txt (xA +' 1cm, yA1 -' 0.4cm) {`spawn`};
+              darr (xA, yA1 -' 0.5cm) (xB, yB1);
+
+              txt (xA +' 1cm, yA1 -' 1.4cm) {`{`AのPID`, 42}` の送信};
+              txt (xA -' 0.3cm, yA1 -' 1.6cm) {`!`};
+              arr (xA, yA1 -' 1.5cm) (xB, yB1 -' 1cm);
+              txt (xB +' 0.2cm, yB1 -' 1.1cm) {`receive`};
+
+              txt (xB +' 0.2cm, yB2 +' 1.2cm) {`moduleB:calculationB`};
+
+              txt (xA +' 0.2cm, yA2 +' 1.9cm) {`moduleA:calculationA`};
+
+              txt (xA +' 2.5cm, y +' 0.75cm) {計算結果の送信};
+              txt (xB +' 0.2cm, yB2 +' 0.4cm) {`!`};
+              arr (xB, yB2 +' 0.5cm) (xA, yA2 +' 0.5cm);
+              txt (xA -' 1.5cm, yA2 +' 0.4cm) {`receive`};
+
+              txt (xB -' 0.3cm, yB2 -' 0.4cm) {終了};
+            ]
+          ));
         >
         +subsection{OTP Design Principlesについて}<
           +p{
