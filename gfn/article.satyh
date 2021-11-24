@@ -728,6 +728,39 @@ end = struct
             +p{
               こうした挙動を記述したい場面はとても多く，OTPライブラリは
               このような実装のパターンを一般化して記述するための仕組みとして `gen_server` を提供しています．
+              `gen_server` は，端的に言えば “受け取ったメッセージに対してどう対処するかだけ与えれば上記の
+              `loop` や `start` などに相当する機能（を大幅に拡張したもの）を担ってくれる” モジュールです．
+              まず，モジュールを “`gen_server` に準拠した実装” にするために，
+              “受け取ったメッセージに対してどう対処するか” などに相当する以下の5つの函数を定義します：
+
+              \listing{
+                * `-spec init(InitArg) → {ok, State} |` ${\ldots}`.`
+                  ** 生成されたプロセスが起動直後に行なう処理．
+                     少し後に紹介する \no-break-latin{`gen_server:start`} や
+                     \no-break-latin{`gen_server:start_link`} に与えられた
+                     引数 `InitArg` を受け取り，初期状態 `State` をつくって
+                     `{ok, State}` を返す．
+
+                * `-spec handle_call(State, From, CallMsg) -> {reply, Reply, State} |` ${\ldots}`.`
+                  ** 後述する `gen_server:call` によって送信されてきた，返信が必要なメッセージを受信したときに行なう処理．
+                     返信内容を `Reply`，更新した状態を `State` として，
+                     `{reply, Reply, State}` を返す．
+
+                * `-spec handle_cast(State, CastMsg) -> {noreply, State} | {stop, Reason} | ` ${\ldots}`.`
+                  ** 後述する `gen_server:cast` によって非同期的に送信されてきた，返信不要のメッセージを受信したときに行なう処理．
+                     更新した状態を `State` として `{noreply, State}` を返す．
+                     メッセージをうけて停止する場合はやはり `{stop, Reason}` を返す．
+
+                * `-spec handle_info(State, Info) -> {noreply, State} | {stop, Reason} |` ${\ldots}`.`
+                  ** `handle_cast` とほぼ同じだが，`gen_server:cast` によって送信されたものではない
+                     （`!` によって送信されてきたものなど）その他のメッセージをさばく処理．
+                     後述する\dfn{モニタ}による \no-break-latin{`{'DOWN',` ${\ldots}`}`} の形式の
+                     メッセージを受け取ったりするのに使う．
+
+                * `-spec terminate(State, Reason) -> ok.`
+                  ** 終了することが確定したとき，終了直前に呼び出される処理．
+                     基本的には何もせず `ok` を返すのでよい．
+              }%
             }
             +p{\REMAINS{gen_serverについて}}
           >
