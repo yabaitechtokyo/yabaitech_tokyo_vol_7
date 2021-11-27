@@ -29,5 +29,5 @@ let-inline ctx \BiBTeX =
     script-guard Latin (no-break ib)
 
 let-inline ctx \chirno =
-  ctx |> FontConfig.set-latin-font (`fonts-noto-serif-cjk-jp:NotoSerifCJKjp-Regular`, 1.0, 0.)
+  ctx |> FontConfig.set-latin-font (`fonts-noto-sans-cjk-jp:NotoSansCJKjp-Regular`, 1.0, 0.)
       |> Inline.of-string `⑨`
