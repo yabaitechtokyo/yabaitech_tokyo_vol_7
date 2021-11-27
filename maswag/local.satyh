@@ -1,5 +1,6 @@
 @require: pervasives
 @require: vdecoset
+@require: class-yabaitech/font-config
 
 let font-ratio-cjk = 0.88
 let get-quad-size ctx =
@@ -28,8 +29,5 @@ let-inline ctx \BiBTeX =
     script-guard Latin (no-break ib)
 
 let-inline ctx \chirno =
-  let size = get-font-size ctx in         
-  let maru = ctx |> read-inline  in
-  let kyuu = ctx |> set-manual-rising (size *' 0.1)
-                 |> read-inline in
-  maru {${\bigcirc}} ++ (inline-skip -2.8mm) ++ kyuu {9}
+  ctx |> FontConfig.set-latin-font (`fonts-noto-serif-cjk-jp:NotoSerifCJKjp-Regular`, 1.0, 0.)
+      |> Inline.of-string `⑨`
