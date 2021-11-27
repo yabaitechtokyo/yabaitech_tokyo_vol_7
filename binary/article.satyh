@@ -1,5 +1,6 @@
 @require: class-yabaitech/yabaitech
 @require: easytable/easytable
+@require: latexcmds/latexcmds
 
 module Binary : sig
 
@@ -133,7 +134,7 @@ end = struct
               このとき、それぞれ男性と女性が得る利得は次のように定められるものとします。
             }
 
-            +p{
+            +centering{
               \easytable?:[t; b; m 1; v 1][c; c; c] {
                 | 男性 ＼ 女性 | スポーツ観戦 | 映画鑑賞
                 | スポーツ観戦 | (2, 1) | (0, 0)
@@ -188,7 +189,7 @@ end = struct
               特に解説は要らないと思いますが、じゃんけんの利得表は次のようになります：
             }
 
-            +p{
+            +centering{
               \easytable?:[t; b; m 1; v 1][c; c; c; c] {
                 | | グー | チョキ | パー
                 | グー | (0, 0) | (1, -1) | (-1, 1)

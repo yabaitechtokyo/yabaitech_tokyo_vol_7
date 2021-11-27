@@ -7,4 +7,5 @@
   (dependencies (
       (base ())
       (class-yabaitech ())
+      (latexcmds ())
       (easytable ()))))
