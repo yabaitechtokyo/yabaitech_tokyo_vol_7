@@ -235,7 +235,7 @@ let article = '<
       rvalue 立てば　いいのよ
     }
     +p {
-      std::moveがあれば　な・ん・で・も 1 2 \chirno;！!
+      std::moveがあれば　な・ん・で・も 1 2 \chirno;！
     }>
 
     +code(`
