@@ -478,8 +478,34 @@ end = struct
                     math:sqrt(XDiff * XDiff + YDiff * YDiff).
               ```);%
 
+              アリティが 0 でも型名には `()` がつきます．これは以下で触れるようなspec註釈中のアトムと区別するためです．
               Dialyzerはこの註釈と実際の函数の定義に明らかな不整合がないかを検査します．
-              spec註釈にはもう少しいろいろなことを表す記法があるのですが，ここでは上記程度の内容で済ませることにします
+              spec註釈にはもう少しいろいろなことを表す記法があります：
+
+              \listing{
+                * 任意の形式を表す `term()`（いわゆるTop型）．
+
+                * \no-break-latin{`{`${T_1}`,` ${\ldots}`,` ${T_n}`}`} で直積型を表す．
+
+                * `foo` などのアトムで “そのアトム単独のリテラル型” を表す．
+
+                * \no-break-latin{${T_1} `|` ${\cdots} `|` ${T_n}} で合併型を表す．
+                  ** 例えば `boolean()` は `true | false` と等しい．
+                  ** いわゆるresultやeitherは
+                     \no-break-latin{`{ok,` ${T_1}`} | {error,` ${T_2}`}`}
+                     で表されることが多い．
+
+                * `when` を用いて同じ形式の部分にローカルに名前を与えて括り出すことができる：
+
+                  \d-code(```
+                    -spec distance(Point, Point) -> float() when Point :: {integer(), integer()}.
+                  ```);%
+
+                * `{error, Reason :: term()}` のように，わかりやすさのために余剰な名前を加えることもできる．
+                  この例は `{error, term()}` と全く同じ．
+              }%
+
+              他にも色々な記法や組み込みで定義された型がありますが，ここでは上記程度の内容で済ませることにします
               （以降の記事中でも少ししか使いません）．
             }
           >
@@ -655,7 +681,7 @@ end = struct
                 * `-spec get(pid()) -> integer().`
                   ** セルプロセスが現在保持している整数を取得する．
                   ** これはセルプロセスからの返信が必要な処理なので返信が来るまで待つ．
-                     5秒経っても返信がない場合は例外送出とする．
+                     既にセルプロセスが存在しない場合や，5秒経っても返信がない場合は例外送出とする．
                 * `-spec set(pid(), integer()) -> ok.`
                   ** セルプロセスが保持する整数を更新する．
                   ** これは指示を出すだけで返信が要らないので送信側はブロックされず，即座に戻り値の `ok` が返る．
@@ -761,8 +787,86 @@ end = struct
                   ** 終了することが確定したとき，終了直前に呼び出される処理．
                      基本的には何もせず `ok` を返すのでよい．
               }%
+
+              これらの函数を定義したモジュール ${X} がある下で，
+              \no-break-latin{`gen_server:start(`${X}`,` ${e_{\mathrm{InitArg}}}`, [])`}
+              を呼び出すと，上記の函数を使用したプロセスを立ち上げることができます\footnote{
+                `gen_server:start/3` の第3引数には起動オプションを渡すのですが，大抵は空リストで問題ありません．
+              }．大抵の場合はこの `gen_server:start/3` も同一モジュールに含めてしまい，
+              `InitArg` の形式やモジュール名などをモジュール内に隠蔽します．
+              モジュール内でそのモジュールの名前を指すには陽に書かずとも `?MODULE` というマクロが使えるので，
+              殆どの場合は以下のような要領の函数がモジュール内に定義されます：
+
+              \d-code(```
+                start(...) -> gen_server:start(?MODULE, ..., []).
+              ```);%
+
+              なお，\no-break-latin{`-module(`${X}`).`} の直後に
+              \no-break-latin{`-behavior(gen_server).`} と追記することで
+              “`gen_server` に適合させる” のに必要な
+              `init/1` や `handle_call/3` など上記5つの函数が揃っているかコンパイル時に検査してくれます．
+              こうした “函数を要求する機構” を\dfn{ビヘイビア} (behavior) といい，
+              ビヘイビア ${B} が要求する函数を ${B} の\dfn{コールバック函数} (callback function) といいます．
+              例えばこの節では `gen_server` ビヘイビアが `init/1` や `handle_call/3` といったコールバック函数を要求する
+              ことを紹介しました．
             }
-            +p{\REMAINS{gen_serverについて}}
+            +p{
+              ビヘイビア ${B} が要求するコールバック函数を全て実装したモジュールを
+              ${B} の\dfn{コールバックモジュール}といいます．
+              セルプロセスを `gen_server` ビヘイビアのコールバックモジュールで実装すると以下のようなプログラムになります：
+
+              \d-code(```
+                -module(cell).
+                -behavior(gen_server).
+
+                -spec start(integer()) -> pid().
+                start(N) ->
+                    {ok, Pid} = gen_server:start(?MODULE, N, []),
+                    Pid.
+
+                -spec get(pid()) -> integer().
+                get(Pid) ->
+                    {got, N} = gen_server:call(Pid, get),
+                    N.
+
+                -spec set(pid(), integer()) -> ok.
+                set(Pid, M) ->
+                    gen_server:cast(Pid, {set, M}).
+
+                -spec stop(pid()) -> ok.
+                stop(Pid) ->
+                    gen_server:cast(Pid, stop).
+
+                init(N) -> {ok, N}.
+
+                handle_call(N, _, get) -> {reply, {got, N}, N}.
+
+                handle_cast(N, {set, M}) -> {noreply, M};
+                handle_cast(_, stop)     -> {stop, normal}.
+
+                handle_info(N, _) -> {noreply, N}.
+
+                terminate(_, _) -> ok.
+              ```);%
+
+              返信を要する同期的メッセージの形式 `CallMsg` が `get`，
+              それに対する返信の形式 `Reply` が `{got, integer()}`，
+              非同期的メッセージの形式 `CastMsg` が `{set, integer()} | stop` というわけです．
+              \no-break-latin{`{stop, `${\ldots}`}`} に与えている終了理由の値 `normal` は正常終了を表すための値の1つです．
+            }
+            +p{
+              もとが簡単な挙動のプロセスだったのであまり便利になった気がしないかもしれませんが，
+              このような “メッセージを受け取って状態を更新するreducer” を与えさえすればプロセス生成や並行処理を全部担ってくれる
+              `gen_server` による共通化には以下のような恩恵があります：
+
+              \listing{
+                * 個別に実装することによる不具合の発生を防ぎやすく，
+                  プロセスが担う機能の複雑化に対して開発が相対的にスケールしやすい．
+                * `gen_server` によってつくられるプロセスは
+                  通常の `spawn` によって起動する “生のErlangの” プロセスに比べ種々の強化機能を備えたものになっており，
+                  それにより次節で述べるOTP Design Principlesに準拠して異常終了をしていないかなどを監視することができる．
+              }
+            }
           >
           +subsubsection{リンク，モニタ，監視ツリー，`supervisor` モジュール}<
             +p{\REMAINS{監視ツリーとsupervisorについて}}
