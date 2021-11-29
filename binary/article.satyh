@@ -608,6 +608,27 @@ end = struct
           }
         >
       >
+
+      +section{CFRアルゴリズムの実装} <
+        +p{\REMAINS{ゲーム木のノードのインターフェースを定義}}
+        +p{\REMAINS{CFRアルゴリズムの実装を示す}}
+      >
+
+      +section{CFRの具体例1: Kuhn Poker} <
+        +p{\REMAINS{Kuhn Pokerの紹介}}
+        +p{\REMAINS{ゲーム木のノードのインスタンスを作成}}
+        +p{\REMAINS{結果発表}}
+      >
+
+      +section{CFRの具体例2: Push/Fold Hold'em} <
+        +p{\REMAINS{Push/Fold Hold'emの紹介}}
+        +p{\REMAINS{ゲーム木のノードのインスタンスを作成}}
+        +p{\REMAINS{結果発表}}
+      >
+
+      +section{まとめ} <
+        +p{\REMAINS{まとめ}}
+      >
     >
   >
 
