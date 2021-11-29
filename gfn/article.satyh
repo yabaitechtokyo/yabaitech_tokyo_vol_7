@@ -1,5 +1,6 @@
 @require: itemize
-@require: code
+@require: proof
+@require: bnf
 @require: base/image
 
 @require: class-yabaitech/yabaitech
@@ -25,12 +26,93 @@ end = struct
       (inline-fil ++ inline-graphics width height 0pt (gf ctx) ++ inline-fil)
 
 
+  let-math \tj mG me mty =
+    ${#mG \vdash #me : #mty}
+
+
+  let-math \tj-pat mp mty mG0 =
+    ${\vdash #mp : #mty \Rightarrow #mG0}
+
+
+  let-math \tj-eff mG mk mty1 mty2 =
+    ${#mG \vdash #mk : \sqbracket{#mty1}\ #mty2}
+
+
+  let-math \DO mx mk1 mk2 =
+    ${\text!{`do` ${#mx} `<-` ${#mk1} `in` ${#mk2}}}
+
+
+  let-math \IF me0 me1 me2 =
+    ${\text!{`if` ${#me0} `then` ${#me1} `else` ${#me2}}}
+
+
+  let-math \APP me0 mes =
+    let m = mes |> Math.join ${,} in
+    ${#me0\text!{`(`${#m}`)`}}
+
+
+  let-math \ACT mxs mk =
+    let m = mxs |> Math.join ${,} in
+    ${\text!{`fun(`${#m}`) -> act`\ }#mk\text!{\ `end`}}
+
+
+  let-math \FUN mxs mk =
+    let m = mxs |> Math.join ${,} in
+    ${\text!{`fun(`${#m}`) ->`\ }#mk\text!{\ `end`}}
+
+
+  let-math \LET mx me1 me2 =
+    ${\text!{`let` ${#mx} `=` ${#me1} `in` ${#me2}}}
+
+
+  let-math \RECEIVE ms =
+    let m = ms |> Math.join ${\text!{\ `|`\ }} in
+    ${\text!{`receive` ${#m} `end`}}
+
+
+  let-math \BR mp me =
+    ${\text!{${#mp} `->` ${#me}}}
+
+
+  let-math \T-ACT mtys mty1 mty2 =
+    let m = mtys |> Math.join ${,} in
+    ${\text!{`fun(`${#m}`) -> [`${#mty1}`]`${#mty2}}}
+
+
+  let-math \T-FUN mtys mty =
+    let m = mtys |> Math.join ${,} in
+    ${\text!{`fun(`${#m}`) ->` ${#mty}}}
+
+
+  let-math \T-PID mty =
+    ${\text!{`pid<`${#mty}`>`}}
+
+
+  let-math \T-UNIT =
+    ${\text!{`unit`}}
+
+
   let bibliography = [
+    (`ElmProcess`, WebSite(|
+      author = {| Evan Czaplicki |};
+      title = {`Process` – `core` 1.0.5};
+      url = `https://package.elm-lang.org/packages/elm/core/1.0.5/Process`;
+      year = 2020;
+    |));
     (`supervisor`, WebSite(|
       author = {| Ericsson AB |};
       title = {`supervisor`};
       url = `https://www.erlang.org/doc/man/supervisor.html`;
       year = 2021;
+    |));
+    (`Fowler2019`, Article(|
+      author = {| Simon Fowler |};
+      title = {Typed Concurrent Functional Programming with Channels, Actors, and Sessions};
+      journal = {PhD thesis, University of Edinburgh};
+      volume = None;
+      number = None;
+      pages = (1, 280);
+      year = 2019;
     |));
     (`GasterJones1996`, Article(|
       author = {| Benedict R. Gaster | Mark P. Jones |};
@@ -108,6 +190,18 @@ end = struct
       number = Some({6});
       pages = (844, 895);
       year = 1995;
+    |));
+    (`OrchardYoshida2016`, InProceedings(|
+      author = {| Dominic Orchard | Nobuko Yoshida |};
+      title = {Effects as sessions, sessions as effects};
+      booktitle = {
+        Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on
+        Principles of Programming Languages};
+      series = Some({(POPL’16)});
+      volume = None;
+      number = None;
+      pages = (568, 581);
+      year = 2016;
     |));
     (`Alpaca`, WebSite(|
       author = {| Jeremy Pierre et al. |};
@@ -528,7 +622,7 @@ end = struct
             }
           >
         >
-        +subsection{並行処理の定式化}<
+        +subsection?:(`subsec:erlang-concurrency`){並行処理の定式化}<
           +p{
             前述の通り，
             Erlangは並行処理や分散による並列処理を得意とする計算機言語で，
@@ -1711,10 +1805,9 @@ end = struct
           +subsubsection{並行処理}<
             +p{
               今のところSesterlの実際のユースケースではどちらかといえばOTPライブラリを使用するのが中心で，
-              “生のErlangの機能” は結果的にあまり使う必要がなさそうな感じになっていますが，
-              型つけの仕組みとしては重要なので，
-              Erlangの `spawn`，`!`，`receive` などに相当する機能に
-              どんな風に型つけを行なったかを紹介したいと思います．
+              “生のErlangの機能としてのプロセス生成や送受信” は結果的にあまり使う必要がなさそうな感じになっていますが，
+              専らOTPライブラリを使う場合に於いても並行処理の型つけの仕組みは重要なので，
+              どんな風に型つけを行なうことにしたかを紹介したいと思います．
             }
             +p{
               Sesterlでも，Erlangの `self`，`spawn`，`!`，`receive` はほぼそのままの意味論で提供しています．
@@ -1722,7 +1815,7 @@ end = struct
               組み込みの `self`，`spawn`，`send` という函数で使えるようになっており，
               またこれに加えて `return` という（モナドの `return` 或いは `pure` に相当する）
               純粋な計算結果を並行処理の結果に持ち上げる函数があります．
-              それぞれ以下のような型がついています：
+              結論から掲げると，それぞれ以下のような型がついています：
 
               \d-code(```
                 val self<$a> : fun() -> [$a]pid<$a>
@@ -1736,33 +1829,204 @@ end = struct
               という見慣れない形式の型がありますが，まず前者が並行計算につける型です．
               気持ちとしては
               \no-break-latin{`[`${\tau'}`]`${\tau}}
-              の部分がモナディックな機構で，おおよそ “${\tau'} 型のメッセージを受け取れて，
+              の部分がモナディックな機構に相当し，おおよそ “${\tau'} 型のメッセージを受け取れて，
               最終的に ${\tau} 型の値になるような並行処理” を表します\footnote{
                 「${\tau'} 型のメッセージを受け取れる」は，
                 より正確には「メッセージを受け取るなら，そのメッセージは ${\tau'} 型でなければならない」です．
               }．
               また，後者の \no-break-latin{`pid<`${\tau}`>`} が
-              “${\tau} 型のメッセージを受け取れるプロセスのPID” につく型です．
-              モナドの `bind` に相当するのは
-              \no-break-latin{`do` ${p} `<-` ${e_1} `in` ${e_2}}
-              という構文で，これには以下のような規則で型をつけます：
+              “${\tau} 型のメッセージを受け取れるプロセスのPIDにつく型” です．
             }
-            +p{\REMAINS{型つけ規則}}
             +p{
-              すなわち，
-              パターン ${p} が ${e_1} の計算結果に束縛され，
-              また ${e_1} と ${e_2} は同一の形式のメッセージを受け取る並行処理でなければならないという制約を表します．
+              もう少しボトムアップかつフォーマルに書くと，（抜粋ですが）型と式の構文は以下のように設定されています：
+
+              \BNFs[
+                (${\tau}, [
+                  ${| \T-FUN{|\tau|\ldots|\tau|}{\tau} | \cdots |};
+                  ${| \T-ACT{|\tau|\ldots|\tau|}{\tau}{\tau} | \T-PID{\tau} |};
+                ]);
+                (${e}, [
+                  ${| \APP{e}{|e|\ldots|e|} | \LET{x}{e}{e} | \IF{e}{e}{e} | \cdots |};
+                  ${| x | \FUN{|x|\ldots|x|}{e} | \ACT{|x|\ldots|x|}{k} |};
+                ]);
+                (${k}, [
+                  ${| \APP{e}{|e|\ldots|e|} | \LET{x}{e}{k} | \IF{e}{k}{k} | \cdots |};
+                  ${| \DO{x}{k}{k} | \paren{\RECEIVE{|\BR{p}{k}|\cdots|\BR{p}{k}|}} |}
+                ]);
+              ];%
+
+              式が純粋計算用の ${e} と並行計算用の ${k} に分かれているのが特徴です．
+              モナドの `bind` に相当するのが ${\DO{x}{k_1}{k_2}} という構文で\footnote{
+                実際には変数の部分はパターンに一般化することができ，
+                ${\DO{p}{k_1}{k_2}} の構文をとりますが，
+                ここでは簡単のため変数のみに限定しています．
+              }，
+              これにより送受信に関わる処理をシーケンシャルに繋ぎます．
+              ${\RECEIVE{|\cdots|}} はErlangの `receive` 式にほぼそのまま対応するものです．
+              ${p} は具体的な定義は省略しますがパターンを表すメタ変数です．
+              ${\ACT{|x_1|\ldots|x_n|}{k}} が並行処理をなすような函数抽象で，
+              以下の型つけ規則でみるようにこの函数は並行処理の式に於いてしか適用できませんが，
+              この函数自体は純粋な値と扱います．
             }
-            +p{\REMAINS{組み込み函数の型の直観と，対応する構文について}}
+            +p{
+              型判定は，純粋な式に対しては ${\tj{\Gamma}{e}{\tau}} の3項関係の形を，
+              並行処理の式に対しては ${\tj-eff{\Gamma}{k}{\tau'}{\tau}} の4項関係の形をそれぞれとり，
+              以下のような規則で型をつけます：
+
+              \math-list(${
+              | \derive{
+                | \tj-eff{\Gamma}{k_1}{\tau'}{\tau_1}
+                | \tj-eff{\Gamma + \set{x \mapsto \tau_1}}{k_2}{\tau'}{\tau_2}
+                |}{
+                  \tj-eff{\Gamma}{\DO{x}{k_1}{k_2}}{\tau'}{\tau_2}
+                }
+              | \derive{
+                | \tj-pat{p_i}{\tau'}{\Gamma_i}
+                | \tj-eff{\Gamma + \Gamma_i}{k_i}{\tau'}{\tau}\text!{\ (for each ${i \in \set{1, \ldots, n}})}
+                |}{
+                  \tj-eff{\Gamma}{\RECEIVE{|\BR{p_1}{k_1}|\cdots|\BR{p_n}{k_n}|}}{\tau'}{\tau}
+                }
+              | \derive{
+                | \tj-eff{\Gamma + \set{x_1 \mapsto \tau_1, \ldots, x_n \mapsto \tau_n}}{k}{\tau'}{\tau}
+                |}{
+                  \tj{\Gamma}{\ACT{|x_1|\ldots|x_n|}{k}}{\T-ACT{|\tau_1|\ldots|\tau_n|}{\tau'}{\tau}}
+                }
+              |});%
+
+              ただし，型環境の結合 ${\Gamma_1 + \Gamma_2} は “変数名が重複した場合は右を優先する合併” であり，
+              またパターンに対する判定 ${\tj-pat{p}{\tau}{\Gamma}} は
+              “${p} は ${\tau} 型の値にマッチしうるパターンであり，その中に出現する変数に対する型環境は ${\Gamma}”
+              であることに対応する判定です（導出規則は素直なので省略します）．
+              ${\DO{x}{k_1}{k_2}} の規則はすなわち
+              変数 ${x} が ${k_1} の計算結果に束縛され，
+              また ${k_1} と ${k_2} は同一の形式のメッセージを受け取る並行処理でなければならないという制約を表します．
+              ${\RECEIVE{|\BR{p_1}{k_1}|\cdots|\BR{p_n}{k_n}|}} に対する型つけ規則は
+              各 ${p_i} が現在の文脈で受信できるメッセージの型である ${\tau'} 型の値にマッチするパターンであること，
+              かつ続きの並行処理である各 ${k_i} でもやはり受信できるメッセージの型は引き続き ${\tau'} であることを要請します．
+            }
+            +p{
+              函数適用は純粋/並行でそれぞれ以下のように型つけされ，
+              純粋函数は純粋な式の中（つまり ${e} が期待される箇所）でしか，
+              並行処理を生じる函数は並行処理の式の中（つまり ${k} が期待される箇所）でしか，
+              それぞれ適用できないようになっています：
+
+              \math-list(${
+              | \derive{
+                | \tj{\Gamma}{e}{\T-FUN{|\tau_1|\ldots|\tau_n|}{\tau}}
+                | \tj{\Gamma}{e_i}{\tau_i}\text!{\ (for each ${i \in \set{1, \ldots, n}})}
+                |}{
+                  \tj{\Gamma}{\APP{e}{|e_1|\ldots|e_n|}}{\tau}
+                }
+              | \derive{
+                | \tj{\Gamma}{e}{\T-ACT{|\tau_1|\ldots|\tau_n|}{\tau'}{\tau}}
+                | \tj{\Gamma}{e_i}{\tau_i}\text!{\ (for each ${i \in \set{1, \ldots, n}})}
+                |}{
+                  \tj-eff{\Gamma}{\APP{e}{|e_1|\ldots|e_n|}}{\tau'}{\tau}
+                }
+              |});%
+
+              適用の規則を最初に掲げた `self`，`spawn`，`send`，`return` の型と組み合わせて
+              許容規則をつくると以下のようになります
+              （というより，以下のような規則を着想してそこから逆算すると最初に掲げたような多相型がつくというわけです）：
+
+              \math-list(${
+              | \derive{
+                |}{
+                  \tj-eff{\Gamma}{\APP{\text!{`self`}}{|}}{\tau'}{\T-PID{\tau'}}
+                }
+              | \derive{
+                | \tj{\Gamma}{e}{\T-ACT{|}{\tau}{\T-UNIT}}
+                |}{
+                  \tj-eff{\Gamma}{\APP{\text!{`spawn`}}{|e|}}{\tau'}{\T-PID{\tau}}
+                }
+              |});%
+              \math-list(${
+              | \derive{
+                | \tj{\Gamma}{e_1}{\T-PID{\tau}}
+                | \tj{\Gamma}{e_2}{\tau}
+                |}{
+                  \tj-eff{\Gamma}{\APP{\text!{`send`}}{|e_1|e_2|}}{\tau'}{\T-UNIT}
+                }
+              | \derive{
+                | \tj{\Gamma}{e}{\tau}
+                |}{
+                  \tj-eff{\Gamma}{\APP{\text!{`return`}}{|e|}}{\tau'}{\tau}
+                }
+              |});%
+
+              ここまでくるとわりと直観的な型つけ規則に見えてくるんじゃなかろうかと思いますが，
+              一応直観を書くと以下のような具合です：
+
+              \listing{
+                * `self` は受信できるメッセージの型が ${\tau'} であるような文脈で使うと
+                  戻り値である自身のPIDは当然 ${\tau'} 型のメッセージを受け取れるプロセスのPIDなので，
+                  戻り値は ${\T-PID{\tau'}} 型．
+
+                * `spawn` は ${\tau} 型のメッセージを受け取る並行処理の函数抽象 ${e} を
+                  受け取ると ${\tau} 型のメッセージを受け取れるプロセスを生成してそのPIDを返すので，
+                  戻り値は ${\T-PID{\tau}} 型．
+                  また，どんなメッセージが受信できる文脈で呼び出さねばならないかの制約はないので，
+                  ${\tau'} は自由．
+
+                * `send` の適用では第1引数のPIDのプロセスが受け取れる型と第2引数のメッセージとなる式の型が
+                  一致していなければならない．ちなみに戻り値はErlangとは違い常にユニット値としている．
+
+                * `return` は本当にそのまま．${\tau'} は自由．
+              }%
+            }
+            +p{
+              実際にここまでに述べた型つけ規則で，
+              \ref-subsection(`subsec:erlang-concurrency`); のErlangの解説で掲げた例をSesterlで型のつくプログラムへと
+              ほぼそのままの形で移植することができます：
+
+              \d-code(```
+                module ConcurrencyExample = struct
+                  val sub() = act
+                    receive
+                    | {from, n} ->
+                        let answer = ModuleB.calculation_b(n) in
+                        send(from, answer)
+                    end
+
+                  val main() = act
+                    do pid_a <- self() in
+                    do pid_b <- spawn(fun() -> act sub(pid_a) end) in
+                    do {} <- send(pid_b, {pid_a, 42}) in
+                    let result_a = ModuleA.calculation_a(57) in
+                    receive
+                    | result_b -> return({result_a, result_b})
+                    end
+                end
+              ```);%
+
+              並行処理を行なうような函数をトップレベルで定義する場合は
+              \no-break-latin{`val` ${f}`(`${x_1}`,` ${\ldots}, ${x_n}`) = act` ${k} `end`}
+              の形で記述します．
+              なお，上記の例でもし `ModuleB.calculation_b` が内部で並行処理を行なう函数だったなら
+              以下のように書く必要があります（`ModuleA.calculation_a` も同様）：
+
+              \d-code(```
+                do answer <- ModuleB.calculation_b(n) in
+              ```);%
+
+            }
+            +p{
+              ちなみにこの節で述べたような並行処理に対するモナディックな型つけは
+              しばしば使われるテクニックで，
+              似た直観に基づく型システムが例えば \cite[`Fowler2019`]; や \cite[`OrchardYoshida2016`]; にみられるほか，
+              Elmの `Process` モジュール \cite[`ElmProcess`]; もよく似た型つけを採用しています．
+            }
           >
           +subsubsection{並行処理に関する型がなぜ函数型と一体化したような形になっているのか}<
             +p{
-              前節で紹介した並行処理の型に於いて
+              前節で紹介した並行処理の型に於いては
               “\no-break-latin{`[`${\tau'}`]`${\tau}} の部分だけを単独で取り出すことができない” ように
-              函数の終域のみに制約しているのはコンパイルの都合です．
+              函数の終域のみに制約しており，かつそのために式の構文も純粋な ${e} と並行処理を担う ${k} に
+              分離していました．このような定式化になっているのは，端的にErlangへのコンパイルの都合です．
               もしこの
               \no-break-latin{`[`${\tau'}`]`${\tau}}
-              の部分だけで型をなすとするとき，この型がつく式はどのようにコンパイルすればよいでしょうか？\quad;
+              の部分だけで型をなすとし，式はすべて ${e} だけで扱えるとすると，
+              この型がつく式はどのようにコンパイルすればよいでしょうか？\quad;
               例えば次のようなプログラムを考えます：
 
               \d-code(```
@@ -1784,28 +2048,28 @@ end = struct
                   42
               ```);%
 
-              元々の例は，要するに “`pid` に `57` を送信する並行処理” だけを作成して
+              元々の例は，要するに “`pid` に `"Hello"` を送信する並行処理” だけを作成して
               その並行処理を実際に動作させずに捨てているというわけです．
               したがって，`send` の適用の戻り値である
               \no-break-latin{`[`${\tau'}`]unit`} 型のつく値は
               “未実行の並行処理” なのであって，Erlangにコンパイルするには（アリティ 0 の）函数抽象にする必要があります．
               また，これに伴って例えば
-              \no-break-latin{`do` ${p} `<-` ${e_1} `in` ${e_2}}
-              は（${p} のErlangへのコンパイル結果を ${P}，
-              同様に ${e_1} のコンパイル結果を ${E_1}，${e_2} のコンパイル結果を ${E_2} として）
-              \no-break-latin{`fun() ->` ${P} `=` ${E_1}`(),` ${E_2}`() end`}
-              のようにコンパイルされねばなりません．
+              \no-break-latin{`do` ${x} `<-` ${k_1} `in` ${k_2}}
+              は（${x} に対応して生成されたErlangでの変数名を ${X}，
+              同様に ${k_1} のコンパイル結果を ${K_1}，${k_2} のコンパイル結果を ${K_2} として）
+              \no-break-latin{`fun() ->` ${X} `=` ${K_1}`(),` ${K_2}`() end`}
+              のような式にコンパイルされねばなりません．
               こうした対処をしていくと，かなり多くの処理が
               \no-break-latin{`fun() ->` ${\ldots} `end`}
-              と空の引数列の適用によってthunkとforceを繰り返すことになり，
+              という函数抽象でのthunkと空の引数列の適用によるforceを繰り返すことになり，
               パフォーマンスの悪化が見込まれます．
               或る程度最適化で緩和できるようにも思えますが，
               とりわけトップレベルで定義される並行処理を含む函数のパフォーマンスを改善することが難しく，
               できたとしてもFFIをわかりやすくするという目的のひとつを達成できるとは考えがたいです．
             }
             +p{
-              そこで，前節で紹介したように最初から函数と一体化したものとして定式化し，
-              構文も純粋と並行で分けるという方式を採ることにしました．
+              そこで，前節で紹介したように並行処理のモナドを最初から函数と一体化したものとして定式化し，
+              構文も純粋な式と並行処理の式とで分けるという方式を採ることにしました．
               これにより
               \no-break-latin{`fun(`${\tau_1}`,` ${\ldots}`,` ${\tau_n}`) ->` ${\tau}}
               型の式（＝引数を受け取って純粋な計算を行なう函数）と
