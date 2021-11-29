@@ -8,4 +8,5 @@
       (base ())
       (class-yabaitech ())
       (latexcmds ())
-      (easytable ()))))
+      (easytable ())
+      (azmath ()))))
