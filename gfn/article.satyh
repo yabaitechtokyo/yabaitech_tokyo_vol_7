@@ -124,6 +124,16 @@ end = struct
       pages = (529, 607);
       year = 2014;
     |));
+    (`SvenssonFredlundEarle2010`, InProceedings(|
+      title = {A unified semantics for future Erlang};
+      author = {| Hans Svensson | Lars-Åke Fredlund | Clara Benac Earle |};
+      booktitle = {Erlang ’10};
+      series = None;
+      volume = None;
+      number = None;
+      pages = (23, 31);
+      year = 2010;
+    |));
   ]
 
   let article = '<
@@ -1047,7 +1057,37 @@ end = struct
             }
           >
           +subsubsection{`trap_exit`： リンク機能の例外}<
-            +p{\REMAINS{trap exitについて}}
+            +p{
+              ややこしいことに，「リンクは双方向関係」という点には例外があり\footnote{
+                例外と言いつつ結構使われます．後述の `supervisor` の実装にも使われています．
+                単方向の関係はリンクから取り除いてモニタに集約する意味論に改めた方が自然ではないかという
+                提案の論文もあります \cite[`SvenssonFredlundEarle2010`]; が，
+                今のところそのような破壊的変更には至っていないようです．
+              }，
+              実際には単方向関係のように使うことができます．
+              各プロセスは「リンクしているプロセスが終了してもそれに伴って自動で終了せずメッセージとして捕捉するモード」
+              を設定することができるのです．
+              このモードはデフォルトでは無効ですが，
+              `process_flag(trap_exit, true)` という組み込み函数の呼び出しによって有効にできます．
+              大抵はこのモードの有効/無効を切り替えたりはせず，起動直後に設定してそのままということが多いです．
+            }
+            +p{
+              このモードを有効にしていると，リンクしているプロセスが終了したときに自身は死なず，
+              \no-break-latin{`{'EXIT',` ${v_{\mathrm{pid}}}`,` ${v_{\mathrm{reason}}}`}`}
+              というメッセージが届きます．${v_{\mathrm{pid}}} はリンク関係にあった死んだプロセスのPID，
+              ${v_{\mathrm{reason}}} は終了理由の値です．
+              このメッセージをモニタの場合の
+              \no-break-latin{`{'DOWN',` ${\ldots}`}`}
+              と同様に受け取って処理するわけです\footnote{
+                ちなみに，以降では触れませんがさらにややこしいことに例外の例外があります：\quad;
+                終了理由を `kill` というアトムにして異常終了したプロセスは，
+                `trap_exit` のモードが有効か否かにかかわらず問答無用で直接リンクしているプロセスを全て終了させます．
+                これによって終了させられたプロセスの終了理由は `killed` になるので，
+                この効果はリンク先のリンク先以降には波及しません．
+                もうここまで来ると人間に制御するのは困難だろうという気がしてきますが，
+                一応機能としてはこういうものがあります．
+              }．
+            }
           >
           +subsubsection{監視ツリー，`supervisor` モジュール}<
             +p{\REMAINS{監視ツリーとsupervisorについて}}
