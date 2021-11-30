@@ -188,6 +188,29 @@ end = struct
       pages = (273, 284);
       year = 2008;
     |));
+    (`ImNakataGarriguePark2011`, InProceedings(|
+      %issue_date = {October 2011},
+      %publisher = {Association for Computing Machinery},
+      %address = {New York, NY, USA},
+      %issn = {0362-1340},
+      %journal = {SIGPLAN Not.},
+      %isbn = {9781450309400},
+      %publisher = {Association for Computing Machinery},
+      %address = {New York, NY, USA},
+      %url = {https://doi.org/10.1145/2048066.2048141},
+      %doi = {10.1145/2048066.2048141},
+      %location = {Portland, Oregon, USA},
+      author = {| Hyeonseung Im | Keiko Nakata | Jacques Garrigue | Sungwoo Park |};
+      title = {A syntactic type system for recursive modules};
+      booktitle = {
+        Proceedings of the 2011 ACM International Conference on
+        Object Oriented Programming Systems Languages and Applications};
+      series = Some({OOPSLA’11});
+      volume = Some(46);
+      number = Some({10});
+      pages = (993, 1012);
+      year = 2011;
+    |));
     (`LindahlSagonas2006`, InProceedings(|
       % https://it.uu.se/research/group/hipe/papers/succ_types.pdf
       author = {| Tobias Lindahl | Konstantinos Sagonas |};
@@ -2447,7 +2470,7 @@ end = struct
           }
           +p{
             というわけでSesterlではstatic interpretationによって
-            ファンクタの適用を静的にに解決してしまうことで
+            ファンクタの適用を静的に解決してしまうことで
             OTPライブラリなどファンクタを使って書かれたプログラムも
             Erlangモジュールへと落とし込めるようなコンパイル処理が実現できています．やったぜ．
           }
@@ -2458,6 +2481,28 @@ end = struct
             ファンクタを含むモジュールシステムはOTPライブラリの型つきの定式化などに大いに役立っていますが，
             顕著に必要ながらまだ備えつけられていない機能があります．
             それが\dfn{再帰モジュール} (recursive modules) です．
+          }
+          +p{
+            再帰モジュールとはその名の通り（再帰函数が `let rec` で相互再帰的に定義されるように）
+            相互再帰的に定義されたモジュールです．
+            例えばOCamlでは（依然として実験的な言語機能であると警告されていますが）
+            \no-break-latin{
+              `module rec` ${X_1} `:` ${S_1} = ${M_1} `and` ${\cdots} `and`
+              ${X_n} `:` ${S_n} = ${M_n}}
+            という構文で再帰モジュールを定義することができます．
+          }
+          +p{
+            再帰モジュールはOCamlがサポートしようとしているなど
+            一応計算機言語一般にとってありがたみのある機能で，
+            どんなプログラムが書けて嬉しいかなどは \cite[`ImNakataGarriguePark2011`]; に
+            いくつか具体例がありますが，とはいえそれほど真に必要となる場面が多いわけではありません．
+            しかしながら，Sesterlではとりわけ再帰モジュールの機能が必要に迫られることが顕著に多いです．
+            なぜかというと，Erlangでは並行計算のために自然にモジュールが相互に依存しあう実装になることがよく見られるためです．
+          }
+          +p{
+            Sesterlに移植するなら再帰モジュールが必要になるようなErlangプログラムの簡単な例として，
+            2つの `gen_server` ビヘイビアのコールバックモジュール `foo_server` と `bar_server` があり，
+            これらのモジュールによる2つのプロセスがメッセージを送り合う状況を考えてみます．
           }
           +p{\REMAINS{再帰モジュール}}
         >
