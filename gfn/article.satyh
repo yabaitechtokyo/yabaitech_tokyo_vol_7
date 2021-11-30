@@ -17,8 +17,26 @@ end = struct
     script-guard Latin (inline-frame-outer pads deco (read-inline ctx it))
 
 
+  let font-ratio-cjk = 0.88
+
+
+  let get-quad-size ctx =
+    get-font-size ctx *' font-ratio-cjk
+
+
   let-inline ctx \quad =
-    inline-skip (get-font-size ctx *' 0.88)
+    inline-skip (get-quad-size ctx)
+
+
+  let-inline ctx \quote bt =
+    let qsize = get-quad-size ctx in
+    let pads = (qsize, 0pt, 0pt, 0pt) in
+    let decoset = VDecoSet.quote-round 6pt 4pt (Gray(0.75)) in
+    let bb =
+      block-frame-breakable ctx pads decoset
+        (fun ctx -> read-block ctx bt)
+    in
+    inline-fil ++ embed-block-breakable ctx bb
 
 
   let-block ctx +image width height gf =
@@ -770,7 +788,7 @@ end = struct
             ]
           ));
         >
-        +subsection{OTP Design Principlesについて}<
+        +subsection?:(`subsec:otp-design-principles`){OTP Design Principlesについて}<
           +p{
             並行処理がどのように実現されているかは前節で紹介しましたが，
             実際には逐一 `spawn`，`!`，`receive` といった比較的低級な送受信の実装を直接記述する必要はあまりなく，
@@ -2086,7 +2104,7 @@ end = struct
             自然に使えるような言語設計にすることがSesterlの要件のひとつでした．
             これについて取り組んだ研究は筆者の感知する限りあまり見かけず，
             また実際に実装されたAltErlangの言語設計やライブラリなどを見てもそうそう見当たらないものでした\footnote{
-              少なくとも開発開始当時はそうでした．
+              少なくとも開発開始当時の筆者は認知していませんでした．
               現在だと\ref-subsection(`subsec:other-alt-erlang-languages`);で紹介したように
               Hamlerが型クラスとしてビヘイビアを定式化しているようです．
             }．
@@ -2097,6 +2115,130 @@ end = struct
             （それ自体には手を加えたり再実装したりせずに）ラップして型安全に使えるように型のつくインターフェイスにしたかというと，
             別にアイディアとして見事なものというわけではなく，
             簡単に言えばML系言語が備えているファンクタをもつモジュールシステムを用いたインターフェイスにしたということになります．
+            より具体的に言えば，次のような直観によりファンクタをOTPライブラリの定式化に使用しました：
+
+            \quote<
+              +p{
+                `init` や `handle_call` などのコールバック函数を要求する `gen_server` ビヘイビアをシグネチャと捉えると，
+                `gen_server` モジュールはこのシグネチャのつくストラクチャを受け取ってプロセスの実装となるストラクチャを返す
+                ファンクタとして定式化できる．
+              }
+            >%
+
+            ただし，実際にはコールバック函数に相当する函数だけでなく
+            それらの函数にまつわる型の指定もファンクタの引数として与えられねばなりません．
+            結果として `gen_server` ビヘイビアに対応するシグネチャ `Stdlib.GenServer.Behaviour` \footnote{
+              綴り字が英国英語になっているのはなんとなくですが，米国英語に変えてもいいかもしれません．
+            }は以下のような定義になりました（一部省略）：
+
+            \d-code(```
+              module GenServer : sig
+                ...
+                type initialized :: (o) -> o
+                type reply :: (o, o) -> o
+                type no_reply :: (o) -> o
+
+                signature Behaviour = sig
+                  type init_arg :: o
+                  type request :: o
+                  type response :: o
+                  type cast_message :: o
+                  type info :: o
+                  type state :: o
+                  ...
+                  val init : fun(init_arg) -> [info]initialized<state>
+                  val handle_call<$a> :
+                    fun(request, pid<$a>, state) -> [info]reply<response, state>
+                  val handle_cast :
+                    fun(cast_message, state) -> [info]no_reply<state>
+                  val handle_info : fun(info, state) -> [info]no_reply<state>
+                  val terminate : fun(StopReason.t, state) -> [info]unit
+                  ...
+                end
+                ...
+              end
+            ```);%
+
+            `initialized`，`reply`，`no_reply` は抽象化された型ですが，
+            それぞれ単に `init`，`handle_call`，`handle_cast`（および `handle_info`）の
+            戻り値のための型で，それぞれErlangの `gen_server` での
+            \no-break-latin{`{ok, State} |` ${\ldots}}，
+            \no-break-latin{`{reply, Reply, State} |` ${\ldots}}，
+            \no-break-latin{`{noreply, State} |` ${\ldots}}
+            の形式に対応するものです．これらの型のつく値は `GenServer` モジュールが提供する
+            以下のような函数によってつくることができます\footnote{
+              説明の都合で実際についている型より少し特殊化しています．
+            }：
+
+            \d-code(```
+              module GenServer : sig
+                ...
+                val init_ok<$m, $state> : fun($state) -> [$m]initialized<$state>
+                val init_stop<$m, $state> : fun(StopReason.t) -> [$m]initialized<$state>
+                val reply<$m, $response, $state> :
+                  fun($response, $state) -> [$m]reply<$response, $state>
+                val reply_and_stop<$m, $response, $state> :
+                  fun(StopReason.t, $response, $state) -> [$m]reply<$response, $state>
+                ...
+              end
+            ```);%
+
+            これらの函数は実際に `Stdlib.GenServer.Behaviour` シグネチャをつけるストラクチャのメンバである
+            `init`，`handle_call`，`handle_cast`，${\ldots} の定義をする際に使います．
+          }
+          +p{
+            `Stdlib.GenServer.Behaviour` が要求するそれぞれの型の用途は以下の通りです：
+
+            \listing{
+              * `init_arg`：\quad;`init` の引数．
+              * `request`：\quad;返信を要請する同期的メッセージの型．
+              * `response`：\quad;返信のメッセージの型．
+              * `cast_message`：\quad;返信を要請しない非同期的メッセージの型．
+              * `info`：\quad;`handle_info` で捌かれるより一般の非同期的メッセージの型．
+              * `state`：\quad;プロセスが保持する状態の型．
+            }%
+
+            そして，こうしたシグネチャ `Stdlib.GenServer.Behaviour` のつくストラクチャを
+            引数にとってプロセスで稼働する実装のストラクチャを返すのが，
+            次のようなシグネチャをもつファンクタ `Stdlib.GenServer.Make` です：
+
+            \d-code(```
+              module GenServer : sig
+                ...
+                type start_link_error = RawValue.t
+                type call_error = RawValue.t
+
+                module Make : fun(Callback : Behaviour) -> sig
+                  type proc :: o
+                  val as_pid : fun(proc) -> pid<Callback.info>
+                  val from_pid : fun(pid<Callback.info>) -> proc
+                  val start_link<$a> :
+                    fun(Callback.init_arg) -> [$a]result<proc, start_link_error>
+                  val stop<$a> : fun(proc) -> [$a]unit
+                  val call<$a> :
+                    fun(proc, Callback.request, ?timeout int) ->
+                      [$a]result<Callback.response, call_error>
+                  val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
+                  val send_info<$a> : fun(proc, Callback.info) -> [$a]unit
+                  ...
+                end
+                ...
+              end
+            ```);%
+
+            `Bahaviour` シグネチャのつく `Callback` というモジュール引数を受け取り，
+            そのメンバを使って戻り値のモジュールを構成します．戻り値のモジュールには
+            `start_link` や `call` などの函数のメンバがあり，
+            これが元々のOTPライブラリでの
+            \no-break-latin{`gen_server:start_link(?MODULE,` ${\ldots}`)`}
+            や
+            \no-break-latin{`gen_server:call`}
+            として使えるという算段です．
+          }
+          +p{
+            シグネチャで一般論だけ見ても雰囲気しか感じ取れないかと思うので，
+            具体的な使用例としてこの `Stdlib.GenServer.Make` を使って
+            \ref-subsection(`subsec:otp-design-principles`); のセルプロセスの例をSesterlに移植してみます：
           }
           +p{\REMAINS{ファンクタ，static interpretation，future workとして再帰モジュール}}
         >
