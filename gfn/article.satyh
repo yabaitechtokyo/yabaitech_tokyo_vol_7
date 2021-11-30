@@ -2208,37 +2208,123 @@ end = struct
                 type start_link_error = RawValue.t
                 type call_error = RawValue.t
 
-                module Make : fun(Callback : Behaviour) -> sig
+                module Make : fun(C : Behaviour) -> sig
                   type proc :: o
-                  val as_pid : fun(proc) -> pid<Callback.info>
-                  val from_pid : fun(pid<Callback.info>) -> proc
+                  val as_pid : fun(proc) -> pid<C.info>
+                  val from_pid : fun(pid<C.info>) -> proc
                   val start_link<$a> :
-                    fun(Callback.init_arg) -> [$a]result<proc, start_link_error>
-                  val stop<$a> : fun(proc) -> [$a]unit
+                    fun(C.init_arg) -> [$a]result<proc, start_link_error>
                   val call<$a> :
-                    fun(proc, Callback.request, ?timeout int) ->
-                      [$a]result<Callback.response, call_error>
-                  val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
-                  val send_info<$a> : fun(proc, Callback.info) -> [$a]unit
+                    fun(proc, C.request, ?timeout int) ->
+                      [$a]result<C.response, call_error>
+                  val cast<$a> : fun(proc, C.cast_message) -> [$a]unit
+                  val send_info<$a> : fun(proc, C.info) -> [$a]unit
                   ...
                 end
                 ...
               end
             ```);%
 
-            `Bahaviour` シグネチャのつく `Callback` というモジュール引数を受け取り，
+            `Stdlib.GenServer.Bahaviour` シグネチャのつく `C` というモジュール引数を受け取り，
             そのメンバを使って戻り値のモジュールを構成します．戻り値のモジュールには
             `start_link` や `call` などの函数のメンバがあり，
-            これが元々のOTPライブラリでの
+            これが元々のOTPでの
             \no-break-latin{`gen_server:start_link(?MODULE,` ${\ldots}`)`}
             や
             \no-break-latin{`gen_server:call`}
             として使えるという算段です．
+            `proc` は戻り値のモジュールによってつくられるプロセスのPIDの型であり，
+            その気になれば `as_pid` と `from_pid` によって通常のPIDと相互に変換することができます\footnote{
+              `proc` は単に `pid<C.info>` 型のエイリアスにしてもよいのですが，
+              `proc` 型の値が意識しないうちに通常のPIDとして使われ，
+              他の形式の（たまたま受信できるメッセージの型が同じ）プロセスに由来するPIDと混同されるのを防ぐために
+              意識的に相互変換しなければならないAPIにしました．
+            }．
           }
           +p{
-            シグネチャで一般論だけ見ても雰囲気しか感じ取れないかと思うので，
-            具体的な使用例としてこの `Stdlib.GenServer.Make` を使って
-            \ref-subsection(`subsec:otp-design-principles`); のセルプロセスの例をSesterlに移植してみます：
+            シグネチャだけ記載しても具体的な使用例が想像しにくいと思うので，
+            \ref-subsection(`subsec:otp-design-principles`); のセルプロセスの例を
+            `Stdlib.GenServer.Make` を使ってSesterlに移植してみます：
+
+            \d-code(```
+              module Cell :> sig
+                open Stdlib
+
+                type proc
+                type start_error = RawValue.t
+                val start_link<$a> : fun(int) -> [$a]result<proc, start_error>
+                val get<$a> : fun(proc) -> [$a]option<int>
+                val set<$a> : fun(proc, int) -> [$a]unit
+                val stop<$a> : fun(proc) -> [$a]unit
+              end = struct
+                open Stdlib
+
+                type start_error = RawValue.t
+
+                module Callback = struct
+                  type request =
+                    | Get
+
+                  type response =
+                    | Got(int)
+
+                  type cast_message =
+                    | Set(int)
+                    | Stop
+
+                  type state = int
+                  type init_arg = int
+                  type info = unit
+                  ...
+                  val init(n) = act
+                    GenServer.init_ok(n)
+
+                  val handle_call(req, pid, n) = act
+                    case req of
+                    | Get -> GenServer.reply(Got(n), n)
+                    end
+
+                  val handle_cast(msg, n) = act
+                    case msg of
+                    | Set(m) -> GenServer.no_reply(m)
+                    | Stop   -> GenServer.no_reply_and_stop(StopReason.normal(), n)
+                    end
+
+                  val handle_info(_, n) = act
+                    GenServer.no_reply(n)
+
+                  val terminate(_, _) = act
+                    return({})
+                  ...
+                end
+
+                module Core = GenServer.Make(Callback)
+
+                type proc = Core.proc
+
+                val start_link(n : int) = act
+                  Core.start_link(n)
+
+                val get(pid : proc) = act
+                  do res <- Core.call(pid, Callback.Get) in
+                  case res of
+                  | Ok(Callback.Got(n)) -> return(Some(n))
+                  | Error(_)            -> return(None)
+                  end
+
+                val set(pid : proc, m : int) = act
+                  Core.cast(pid, Callback.Set(m))
+
+                val stop(pid : proc) = act
+                  Core.cast(pid, Callback.Stop)
+              end
+            ```);%
+
+            Erlangと違って型の定義が必要な影響もあってコードがちょっと長いですが，
+            やっていることは別に複雑ではありません．
+            コールバック函数や型定義をメンバにもつ `Callback` という内部的なモジュールをつくり，
+            それを `GenServer.Make` に渡して生成された戻り値のモジュールを `Core` と名づけ，
+            `start_link` や `get` といった函数の定義に使っているという具合です．
           }
           +p{\REMAINS{ファンクタ，static interpretation，future workとして再帰モジュール}}
         >
