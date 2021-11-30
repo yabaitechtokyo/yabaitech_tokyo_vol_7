@@ -117,6 +117,19 @@ end = struct
       url = `https://package.elm-lang.org/packages/elm/core/1.0.5/Process`;
       year = 2020;
     |));
+    (`ElsmanHenriksenAnnenkovOancea2018`, InProceedings(|
+      author = {| Martin Elsman | Troels Henriksen | Danil Annenkov | Cosmin E. Oancea |};
+      title = {
+        Static interpretation of higher-order modules in Futhark:
+        functional GPU programming in the large
+      };
+      booktitle = {Proceedings of the ACM on Programming Languages 2, ICFP, Article 97};
+      volume = None;
+      series = None;
+      number = None;
+      pages = (1, 30);
+      year = 2018;
+    |));
     (`supervisor`, WebSite(|
       author = {| Ericsson AB |};
       title = {`supervisor`};
@@ -189,13 +202,13 @@ end = struct
       year = 2006;
     |));
     (`Caramel`, WebSite(|
-      author = {| Leandro Ostera et al. |};
+      author = {| Leandro Ostera (et al.) |};
       title = {Caramel};
       url = `https://github.com/AbstractMachinesLab/caramel`;
       year = 2020;
     |));
     (`Hamler`, WebSite(|
-      author = {| Feng Lee et al. |};
+      author = {| Feng Lee (et al.) |};
       title = {Hamler};
       url = `https://github.com/hamler-lang/hamler`;
       year = 2019;
@@ -222,13 +235,13 @@ end = struct
       year = 2016;
     |));
     (`Alpaca`, WebSite(|
-      author = {| Jeremy Pierre et al. |};
+      author = {| Jeremy Pierre (et al.) |};
       title = {Alpaca};
       url = `https://github.com/alpaca-lang/alpaca`;
       year = 2016;
     |));
     (`Gleam`, WebSite(|
-      author = {| Louis Pilfold et al. |};
+      author = {| Louis Pilfold (et al.) |};
       title = {Gleam};
       url = `https://github.com/gleam-lang/gleam`;
       year = 2018;
@@ -2098,7 +2111,7 @@ end = struct
             今のところ知る限りSesterl独自の方法です．
           }
         >
-        +subsection{SesterlをOTP Design Principlesに適合させるために必要だった言語機能たち}<
+        +subsection{ファンクタによるOTPライブラリの定式化}<
           +p{
             さて，OTPライブラリを（OTP Design Principlesに従う形で）
             自然に使えるような言語設計にすることがSesterlの要件のひとつでした．
@@ -2326,7 +2339,108 @@ end = struct
             それを `GenServer.Make` に渡して生成された戻り値のモジュールを `Core` と名づけ，
             `start_link` や `get` といった函数の定義に使っているという具合です．
           }
-          +p{\REMAINS{ファンクタ，static interpretation，future workとして再帰モジュール}}
+          +p{
+            というわけでこういった要領で `gen_server` に型をつけてラップすることができ，
+            SesterlからOTPライブラリを型安全に使用することができるようになっています．
+            紹介すると `gen_server` 以上に長くなるので省きますが，
+            `supervisor` も同様にしてファンクタで定式化することができています．やったぜ．
+          }
+          +p{
+            モジュールシステムにもいろいろな定式化がありますが，
+            Sesterlでは冒頭で述べた通り\dfn{F-ing modules} \cite[`RossbergRussoDreyer2014`]; に基づくものを採用しました．
+            F-ing modules自体については本記事では詳しくは触れませんが，
+            バックナンバーである『ヤバイテックトーキョー vol.5』で
+            筆者が「F-ing modulesの型検査とコンパイル手法」という記事を寄稿していますので，
+            もし興味をお持ちでしたら眺めてみてください．
+          }
+        >
+        +subsection{モジュールのコンパイル方法}<
+          +p{
+            さて，APIとしてはファンクタがOTPライブラリに型をつけてラップするのに筋が良さそうな形式であることは
+            前節で見ました．しかし，まだ問題が残っています：\quad;
+            ファンクタないし一般のモジュールは，どのようなErlangプログラムにコンパイルすべきでしょうか？
+          }
+          +p{
+            前提的な方針としては，
+            Sesterlでの入れ子のない1ストラクチャはErlangの1モジュールにコンパイルしたいと考えます．
+            これは主に以下のような理由によります：
+
+            \listing{
+              * FFIをわかりやすいものにしたいため．
+              * ErlangのソースファイルとSesterlのソースファイルとをモジュール単位で切り分けて共存させられるようにしたいため．
+              * Erlangのランタイムには\dfn{ホットコードローディング}といってプログラムを稼働させたまま
+                モジュール単位で実装を新しいものに置き替えるという驚きの機能があり，
+                将来的にこれをなるべく自然な形でサポートしたいため．
+            }%
+
+            ここから一般のモジュールのコンパイル方法へと拡張したいわけです．
+          }
+          +p{
+            まず，単にストラクチャが入れ子になった構造にコンパイル方法を拡張するのは簡単です．
+            単なる木構造なので，各ノードをモジュールにばらし，モジュール名はそれぞれその “パス” にするとよいだけです．
+            例えば以下のような構造は，
+
+            \d-code(```
+              module Foo = struct
+                module Bar = struct
+                  val f(...) = ...
+                end
+                module Baz = struct
+                  val g(...) = ...
+                end
+                val h(...) = ...
+              end
+            ```);%
+
+            以下のような3つのモジュールへとコンパイルすればよいです：
+
+            \d-code(```
+              -module('Foo.Bar').
+              -export([f/...]).
+              f(...) -> ...
+            ```);%
+            \d-code(```
+              -module('Foo.Baz').
+              -export([g/...]).
+              g(...) -> ...
+            ```);%
+            \d-code(```
+              -module('Foo').
+              -export([h/...]).
+              h(...) -> ...
+            ```);%
+          }
+          +p{
+            しかし，ファンクタはそう簡単にはいきません．
+            Erlangではそもそも動的にモジュールを生成する機能がないため，
+            直接ファンクタ相当の機構をErlangに落とし込む手段がないのです．
+            一応これを解決する方法として
+            「Erlangでファンクタがそのままでは表現できないことをもって
+            上記のようなモジュールのコンパイル方法は諦めてしまい，
+            Sesterlに於けるストラクチャはレコードと同様に，ファンクタは函数抽象と同様のものとして
+            Erlangの式にコンパイルすることにする．
+            モジュールはそれよりも大きい何らかの単位とする」
+            ということも考えられます．
+            ですが，これだと（上記で述べた利点の裏返しで）
+            Sesterlのモジュールの単位でホットコードローディングを行なうことはできなくなり，
+            FFIがわかりにくいものになることも間違いなく，
+            また直接Erlangで書かれたプログラムとSesterlで書かれたプログラムが共存させるのも厄介になりそうですから，
+            やはりできればやりたくないものです．
+          }
+          +p{
+            そこで登場するのが「ファンクタの適用は静的に解決し，戻り値のモジュールをコンパイル時に生成してしまう」という考え方です．
+            実際，このような考えには先行研究があり，\dfn{static interpretation}と呼ばれる手法が提案されています．
+            そのひとつが\dfn{Futhark}という言語向けのもの \cite[`ElsmanHenriksenAnnenkovOancea2018`]; で，
+            これはGPGPU向けにコンパイルされる函数型の言語で
+            実行時のオーバーヘッドを減らすためにファンクタの適用やストラクチャの入れ子などをコンパイル時に
+            除去することを意図して設計された体系で，ソース言語としてはF-ing modulesとよく似ています\footnote{
+              正確にはFutharkのモジュールシステムの方がF-ing modulesに比べていくらか制限を設けられています．
+            }．
+            Sesterlだとストラクチャの構造は残したいので全くそのまま実装すればよいわけではありませんが，
+            ほぼこの体系の方針に従ってファンクタを含むプログラムをストラクチャの木構造のみにする過程を経て
+            Erlangのモジュール群へとコンパイルすることができます．
+          }
+          +p{\REMAINS{static interpretation，future workとして再帰モジュール}}
         >
       >
       +section{天九のルール}<
