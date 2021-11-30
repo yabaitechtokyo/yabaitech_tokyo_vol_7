@@ -229,13 +229,15 @@ end = struct
               次のような言い換えを経る必要がありました：
             }
 
-            +align?:(AZMathEquation.notag)(${
-              |           |\text!{ナッシュ均衡ではどのプレイヤーも利得をこれ以上増やすことができない}
-              |\Rightarrow|\text!{\dfn{２人ゼロサムゲーム}において１人がナッシュ均衡から外れたと仮定する}
-              |\Rightarrow|\text!{ナッシュ均衡から外れたプレイヤーは利得が増えることはない}
-              |\Rightarrow|\text!{\dfn{ゼロサム性}よりナッシュ均衡の戦略を取り続けたプレイヤーは利得が減ることはない}
-              |\Rightarrow|\text!{\dfn{ナッシュ均衡の戦略を取り続けることで利得の最低値が保証される}}
-            |});
+            +with-param(AZMathEquation.vmargin-between-eqn)(fun ctx -> get-font-size ctx) <
+              +align?:(AZMathEquation.notag)(${
+                |           |\text!{ナッシュ均衡ではどのプレイヤーも利得をこれ以上増やすことができない}
+                |\Rightarrow|\text!{\dfn{２人ゼロサムゲーム}において１人がナッシュ均衡から外れたと仮定する}
+                |\Rightarrow|\text!{ナッシュ均衡から外れたプレイヤーは利得が増えることはない}
+                |\Rightarrow|\text!{\dfn{ゼロサム性}よりナッシュ均衡の戦略を取り続けたプレイヤーは利得が減ることはない}
+                |\Rightarrow|\text!{\dfn{ナッシュ均衡の戦略を取り続けることで利得の最低値が保証される}}
+              |});
+            >
 
             +p{
               つまり、\dfn{２人ゼロサムゲーム}においては、ナッシュ均衡の戦略を取ることは
@@ -379,8 +381,8 @@ end = struct
 
           +p{
             Counterfactual valueは、\dfn{展開型ゲーム}と呼ばれる種別のゲームにおいて定義できる値です。
-            展開型ゲームとは、状態を表現する頂点と、アクションによって遷移できることを示す有向辺から
-            なる\dfn{ゲーム木}を用いた、グラフ形式で表現されるゲームのことです。
+            展開型ゲームとは、ゲームの状態を表現する頂点と、アクションによって遷移できることを示す
+            有向辺からなる\dfn{ゲーム木}を用いた、グラフ形式で表現されるゲームのことです。
             グラフに馴染みのない方にはまた何のことやらという感じだと思いますが、このモデルにおいて
             重要なのは、\dfn{「手番」}が存在してプレイヤーが１人ずつアクションを起こすようにゲームが
             モデル化されているという点です。
@@ -497,7 +499,11 @@ end = struct
             プレイヤー${i}の\dfn{戦略}${\sigma_i}および戦略全体の集合${\Sigma_i}．
             戦略${\sigma_i}は情報集合${I_i}を受け取って、次に行うアクション候補の集合
             ${\app{A}{I_i}}上の確率分布を返す関数です。
-            各プレイヤーの戦略${\sigma_0,\ \sigma_1,\ \cdots,\ \sigma_{n - 1}}をまとめたものを
+            戦略${\sigma_i}のもとで、情報集合${I_i}においてアクション${a}を行う確率を
+            ${\app{\sigma_i}{I_i,\ a}}と表記します。
+            なお、${\app{\sigma_i}{I_i}}は確率分布なので、
+            ${\sum_{a \in \app{A}{I_i}} \app{\sigma_i}{I_i,\ a} = 1}が成り立ちます。
+            また、各プレイヤーの戦略${\sigma_0,\ \sigma_1,\ \cdots,\ \sigma_{n - 1}}をまとめたものを
             ${\sigma}と表記し、${\sigma}から${\sigma_i}を除いたものを${\sigma_{-i}}と表記します。
 
           * ${\pi^\sigma: H \to \pB{0,\ 1}}:
@@ -547,6 +553,7 @@ end = struct
               \app{u_i}{\sigma} + \epsilon \geq \max_{\sigma'_i \in \Sigma_i} \app{u_i}{\sigma'_i,\ \sigma_{-i}}
             });
             を満たすことを言います。
+            CFRアルゴリズムによって求まるのは正確にはこちらです。
           }
         >
 
@@ -591,21 +598,62 @@ end = struct
             各時刻における戦略${\sigma^t}は、regret-matchingアルゴリズムによって、これまでの
             リグレットの総和に比例するように与えられることを思い出すと、各時刻における戦略は
             次のように表すことができます：
+
             \eqn?:(AZMathEquation.notag)(${
-              \app{\app{\sigma_i^{T + 1}}{I}}{a} = \cases{
-                | \frac{\app{R_i^{T,+}}{I,\ a}}{\sum_{a \in \app{A}{I}} \app{R_i^{T,+}}{I,\ a}} | \text!{if} \sum_{a \in \app{A}{I}} \app{R_i^{T,+}}{I,\ a} > 0
+              \app{\sigma_i^{T + 1}}{I,\ a} = \cases{
+                | \frac{\app{R_i^{T,+}}{I,\ a}}{\sum_{a' \in \app{A}{I}} \app{R_i^{T,+}}{I,\ a'}} | \text!{if} \sum_{a' \in \app{A}{I}} \app{R_i^{T,+}}{I,\ a'} > 0
                 | \frac{1}{\pabs{\app{A}{I}}} | \text!{otherwise.}
               |}
             });
+
             なお、ここで${\app{R_i^{T,+}}{I,\ a} = \app{\max}{\app{R_i^T}{I,\ a},\ 0}}です。
             最後に、２人ゼロサムゲームにおいてナッシュ均衡に収束するのは、各時刻の戦略を
             ${\app{\pi_i^{\sigma^t}}{I}}で重み付けした場合の平均戦略であることに注意してください：
+
             \eqn?:(AZMathEquation.notag)(${
-              \app{\app{\bar{\sigma}_i^T}{I}}{a} = \frac
-                {\sum_{t = 1}^T \app{\pi_i^{\sigma^t}}{I} \cdot \app{\app{\sigma_i^t}{I}}{a}}
+              \app{\bar{\sigma}_i^T}{I} = \frac
+                {\sum_{t = 1}^T \p{\app{\pi_i^{\sigma^t}}{I} \cdot \app{\sigma_i^t}{I}}}
                 {\sum_{t = 1}^T \app{\pi_i^{\sigma^t}}{I}}.
             });
           }
+
+          +subsubsection{CFRアルゴリズムの改良} <
+            +p{
+              以上が「バニラ」なCFRアルゴリズムの定義ですが、収束を実用上早めるために様々な変種が
+              提案されてもいます。
+              ここでは、実装が比較的簡単でかつ効果の高い\dfn{Discounted CFR (DCFR) アルゴリズム}
+              \footnote{N. Brown and T. Sandholm. \dfn{Solving imperfect-information games via
+              discounted regret minimization.} In AAAI, pages 1829–1836. 2019.}
+              を紹介することにしましょう。
+            }
+
+            +p{
+              DCFRアルゴリズムは３つの実数パラメータ${\alpha,\ \beta,\ \gamma}を取り、先ほどの
+              ${\app{R_i^T}{I,\ a}}と${\app{\bar{\sigma}_i^T}{I}}を次のように再定義します：
+
+              \gather?:(AZMathEquation.notag)(${
+                | \app{R_i^{T + 1}}{I,\ a} = \cases{
+                  | \frac{T^\alpha}{T^\alpha + 1} \app{R_i^T}{I,\ a} + \app{r_i^{T + 1}}{I,\ a} | \text!{if}\ \app{R_i^T}{I,\ a} \geq 0
+                  | \frac{T^\beta}{T^\beta + 1} \app{R_i^T}{I,\ a} + \app{r_i^{T + 1}}{I,\ a} | \text!{otherwise},
+                |}
+                | \app{\bar{\sigma}_i^T}{I} = \frac
+                    {\sum_{t = 1}^T \p{t^\gamma \cdot \app{\pi_i^{\sigma^t}}{I} \cdot \app{\sigma_i^t}{I}}}
+                    {\sum_{t = 1}^T \p{t^\gamma \cdot \app{\pi_i^{\sigma^t}}{I}}}.
+              |});
+
+              ${\p{\alpha,\ \beta,\ \gamma} = \p{\infty,\ \infty,\ 0}}のとき、バニラな
+              CFRアルゴリズムと一致します
+              （${T + 1 = 2}のときに変なことが起こりますがそれは無視することとして）。
+              提案論文では、さまざまなパラメータを実験的に試した結果、
+              ${\p{\alpha,\ \beta,\ \gamma} = \p{1.5,\ 0,\ 2}}が一貫して良いパフォーマンスを
+              示すとされており、今後の実装においてもこのパラメータを採用することとします
+              （特に、${\p{\alpha,\ \beta,\ \gamma} = \p{\infty,\ -\infty,\ 1}}の場合に相当する
+              \dfn{CFR+アルゴリズム}
+              \footnote{O. Tammelin, N. Burch, M. Johanson, and M. Bowling. \dfn{Solving heads-up
+              limit texas hold'em.} In IJCAI, pages 645–652. 2015.}
+              がそれまでのstate-of-the-artとされていたのですが、このCFR+を常に上回っています）。
+            }
+          >
         >
       >
 
