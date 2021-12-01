@@ -44,8 +44,8 @@ end = struct
       (inline-fil ++ inline-graphics width height 0pt (gf ctx) ++ inline-fil)
 
 
-  let-block ctx +pdf-image srcpath =
-    let img = load-pdf-image srcpath 1 in
+  let-block ctx +external-image srcpath =
+    let img = load-image srcpath in
     let ib = use-image-by-width img (get-text-width ctx) in
     line-break true true ctx ib
 
@@ -2610,7 +2610,7 @@ end = struct
         +subsection{使用するコンポーネント}<
           +p{
             \figure?:(`fig:tianjiupai-all`){天九牌を構成する32枚}<
-              +pdf-image(`gfn/tianjiupai-all-monochrome.pdf`);
+              +external-image(`gfn/tianjiupai-all-monochrome.jpg`);
             >
             天九で使う\dfn{天九牌}は，\ref-figure(`fig:tianjiupai-all`);に示すような32枚で1セットの牌です．
           }
