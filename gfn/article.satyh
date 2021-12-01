@@ -44,6 +44,12 @@ end = struct
       (inline-fil ++ inline-graphics width height 0pt (gf ctx) ++ inline-fil)
 
 
+  let-block ctx +pdf-image srcpath =
+    let img = load-pdf-image srcpath 1 in
+    let ib = use-image-by-width img (get-text-width ctx) in
+    line-break true true ctx ib
+
+
   let-math \tj mG me mty =
     ${#mG \vdash #me : #mty}
 
@@ -2582,14 +2588,14 @@ end = struct
       +section{天九のルール}<
         +p{
           次章で実際にSesterl（とElm）を用いてオンラインゲームを設計・実装した話をする前に，
-          ここではちょっと休憩して天九のルールを簡単に紹介します．
+          ここではちょっと休憩して\dfn{天九}のルールを簡単に紹介します．
           正直なところ話の流れとしてはそんなに必須の内容ではなく，
           大体麻雀のように配牌が配られて4人が逐一出していくという手順を経る一般的な卓上ゲームであることさえ
           把握していれば次章が読めるのですが，
           そもそも天九のルールを記載した和文の文献が少ないので布教用として書いておきます．
           なかなか良いゲームで，比喩でなく1日中やっていても飽きないくらいのめり込めます．
           もし良ければここでルールを覚えて天九Onlineで遊んでみてください．
-          気に入ったら実際に天九牌を入手して物理的に遊んでみることもおすすめします\footnote{
+          気に入ったら実際に\dfn{天九牌}を入手して物理的に遊んでみることもおすすめします\footnote{
             日本ではなかなか出回っていませんが，
             ゲームマーケットなどの即売会で販売している方がいたりするほか，
             オンラインで中華圏から個人輸入する手段もあります．
@@ -2602,6 +2608,16 @@ end = struct
           }．
         }
         +subsection{使用するコンポーネント}<
+          +p{
+            \figure?:(`fig:tianjiupai-all`){天九牌を構成する32枚}<
+              +pdf-image(`gfn/tianjiupai-all-monochrome.pdf`);
+            >
+            天九で使う\dfn{天九牌}は，\ref-figure(`fig:tianjiupai-all`);に示すような32枚で1セットの牌です．
+          }
+          +p{
+            このほか，最初の親や配牌の取り方を決めるのにサイコロを2つ，
+            得点を保持しておくのに点棒かポーカーチップを用意するとよいです．
+          }
           +p{\REMAINS{牌の画像など}}
         >
         +subsection{ゲームの手順や牌の出し方}<
