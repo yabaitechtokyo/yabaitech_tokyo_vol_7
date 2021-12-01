@@ -117,6 +117,22 @@ end = struct
       url = `https://package.elm-lang.org/packages/elm/core/1.0.5/Process`;
       year = 2020;
     |));
+    (`Dreyer2007`, InProceedings(|
+      %isbn = {9781595938152},
+      %publisher = {Association for Computing Machinery},
+      %address = {New York, NY, USA},
+      %url = {https://doi.org/10.1145/1291151.1291196},
+      %doi = {10.1145/1291151.1291196},
+      %location = {Freiburg, Germany},
+      author = {| Derek Dreyer |};
+      title = {A type system for recursive modules};
+      booktitle = {Proceedings of the 12th ACM SIGPLAN International Conference on Functional Programming};
+      series = Some({ICFP'07});
+      volume = None;
+      number = None;
+      pages = (289, 302);
+      year = 2007;
+    |));
     (`ElsmanHenriksenAnnenkovOancea2018`, InProceedings(|
       author = {| Martin Elsman | Troels Henriksen | Danil Annenkov | Cosmin E. Oancea |};
       title = {
@@ -268,6 +284,23 @@ end = struct
       title = {Gleam};
       url = `https://github.com/gleam-lang/gleam`;
       year = 2018;
+    |));
+    (`RossbergDreyer2013`, Article(|
+      %issue_date = {April 2013},
+      %publisher = {Association for Computing Machinery},
+      %address = {New York, NY, USA},
+      %issn = {0164-0925},
+      %url = {https://doi.org/10.1145/2450136.2450137},
+      %doi = {10.1145/2450136.2450137},
+      %month = {apr},
+      %articleno = {2},
+      author = {| Andreas Rossberg | Derek Dreyer |};
+      title = {Mixin’ up the ML module system};
+      journal = {ACM Transactions on Programming Languages and Systems};
+      volume = Some(35);
+      number = Some({1});
+      pages = (1, 84);
+      year = 2013;
     |));
     (`RossbergRussoDreyer2014`, Article(|
       author = {| Andreas Rossberg | Claudio Russo | Derek Dreyer |};
@@ -2520,7 +2553,30 @@ end = struct
             Erlangではモジュール間の参照関係には特に制約がないためこのような相互依存な実装がごく普通に書けますが，
             こうした相互依存なモジュールを型つきの世界に持ってくる場合，再帰モジュールの機構が要請されるわけです．
           }
-          +p{\REMAINS{再帰モジュール}}
+          +p{
+            再帰モジュールを実現したモジュールシステムの既存研究はいろいろあり
+            \cite[`Dreyer2007`; `ImNakataGarriguePark2011`; `RossbergDreyer2013`];，
+            再帰のないモジュールシステムに比べて顕著に実現が難しい\footnote{
+              とりわけ\dfn{double vision problem}
+              \cite[`Dreyer2007`; `ImNakataGarriguePark2011`; `RossbergDreyer2013`];
+              という言語設計上の問題への対処が厄介です．
+            }ため三者三様に地獄の様相を呈しています．
+            で，Sesterlにもそれを参考にして設計・実装するかと思うわけですが，
+            残念ながらそうは問屋が卸しません．
+            というのも，Sesterlは既に述べたようにstatic interpretationに依存して
+            モジュールをコンパイルしているためです．
+            再帰モジュールとstatic interpretationを共存させるのはかなり非自明で，
+            そもそもstatic interpretationはファンクタ適用を静的に展開しても必ず停止することを前提しているため，
+            素直に再帰モジュールに拡張しようとすると適用の展開が停止しない可能性が生じ，
+            コンパイルを伴う型検査が決定不能になるおそれがあります．
+            こうした点を克服するのはかなり骨が折れそうで，
+            おそらく解決すればかなり良い論文になるのではないかと思います．
+            まあそんな問題が簡単に解決できることはなく，それゆえに未実装どころか言語設計としても全くの未解決なのが現状です．
+          }
+          +p{
+            というわけで，総合的にはなかなか良い感じにモジュールシステムが実現できてきているものの，
+            再帰モジュールは大きな課題として残っています．
+          }
         >
       >
       +section{天九のルール}<
