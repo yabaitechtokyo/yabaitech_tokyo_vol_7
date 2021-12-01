@@ -3,12 +3,15 @@
 @require: easytable/easytable
 @require: latexcmds/latexcmds
 
+@import: ../lib/code
+
 module Binary : sig
 
   val article : block-text
 
 end = struct
 
+  open Code2
   open EasyTableAlias
 
   let article = '<
@@ -235,7 +238,7 @@ end = struct
                 |\Rightarrow|\text!{\dfn{２人ゼロサムゲーム}において１人がナッシュ均衡から外れたと仮定する}
                 |\Rightarrow|\text!{ナッシュ均衡から外れたプレイヤーは利得が増えることはない}
                 |\Rightarrow|\text!{\dfn{ゼロサム性}よりナッシュ均衡の戦略を取り続けたプレイヤーは利得が減ることはない}
-                |\Rightarrow|\text!{\dfn{ナッシュ均衡の戦略を取り続けることで利得の最低値が保証される}}
+                |\Rightarrow|\text!{\emph{ナッシュ均衡の戦略を取り続けることで利得の最低値が保証される}}
               |});
             >
 
@@ -359,7 +362,7 @@ end = struct
             を繰り返し行うと、各時刻の混合戦略の平均
             \footnote{時刻が無限大のときの混合戦略そのものではない点に注意！}
             が\dfn{相関均衡}に収束することが知られています
-            \footnote{S. Hart and A. Mas-Colell. \dfn{A simple adaptive procedure leading to
+            \footnote{S. Hart and A. Mas-Colell. \emph{A simple adaptive procedure leading to
             correlated equilibrium.} Econometrica, 68(5):1127–1150. 2000.}。
             なお、ここで相関均衡とかいう用語が突然出てきてしまいましたが、これはナッシュ均衡を
             一般化した解概念で、今回の２人じゃんけんの例ではナッシュ均衡と一致するので
@@ -430,7 +433,7 @@ end = struct
             このcounterfactual regretを用いてregret-matchingアルゴリズムを実行し、自己対戦を行うと、
             各時刻の戦略の重み付き平均を取ることで展開型の２人ゼロサムゲームのナッシュ均衡を
             求めることができます
-            \footnote{M. Zinkevich, M. Johanson, M. Bowling, and C. Piccione. \dfn{Regret
+            \footnote{M. Zinkevich, M. Johanson, M. Bowling, and C. Piccione. \emph{Regret
             minimization in games with incomplete information.} In NIPS, pages 1729–1736. 2007.}
             \footnote{ナッシュ均衡の説明に引き続いて、またしても「２人ゼロサム」の条件が突然
             加えられてしまいましたが、今回も３人以上の設定でも「実用上それなりに強い」解を求められる
@@ -622,7 +625,7 @@ end = struct
               以上が「バニラ」なCFRアルゴリズムの定義ですが、収束を実用上早めるために様々な変種が
               提案されてもいます。
               ここでは、実装が比較的簡単でかつ効果の高い\dfn{Discounted CFR (DCFR) アルゴリズム}
-              \footnote{N. Brown and T. Sandholm. \dfn{Solving imperfect-information games via
+              \footnote{N. Brown and T. Sandholm. \emph{Solving imperfect-information games via
               discounted regret minimization.} In AAAI, pages 1829–1836. 2019.}
               を紹介することにしましょう。
             }
@@ -649,7 +652,7 @@ end = struct
               示すとされており、今後の実装においてもこのパラメータを採用することとします
               （特に、${\p{\alpha,\ \beta,\ \gamma} = \p{\infty,\ -\infty,\ 1}}の場合に相当する
               \dfn{CFR+アルゴリズム}
-              \footnote{O. Tammelin, N. Burch, M. Johanson, and M. Bowling. \dfn{Solving heads-up
+              \footnote{O. Tammelin, N. Burch, M. Johanson, and M. Bowling. \emph{Solving heads-up
               limit texas hold'em.} In IJCAI, pages 645–652. 2015.}
               がそれまでのstate-of-the-artとされていたのですが、このCFR+に対して一貫してより
               優れた結果をもたらしています）。
@@ -674,8 +677,122 @@ end = struct
       >
 
       +section{CFRアルゴリズムの実装} <
-        +p{\REMAINS{ゲーム木のノードのインターフェースを定義}}
-        +p{\REMAINS{CFRアルゴリズムの実装を示す}}
+        +p{
+          さて、ようやく本章からは皆さんお待ちかねの実装パートです。
+          プログラムの記述言語には、実行速度とプログラムのエレガントさを重視して\dfn{Rust}を
+          採用することとします。
+          yabaitechを手に取っていただけるような方々にはRustもお茶の子さいさいでしょう、
+          ${\cdots\cdots}というのは半分冗談にしても、いくつかの言語に触れたことがある方ならば
+          プログラムを読むのにそれほど困りはしないと思います。
+        }
+
+        +p{
+          これから紹介するプログラムは、`https://github.com/b-inary/yabai-vol7-src` にアクセスして
+          完全な形を先に確認することもできます。
+        }
+
+        +subsection{ゲームノードのインターフェース定義} <
+          +p{
+            まずはCFRアルゴリズム本体の実装に移る前に、「ゲーム」を定義するゲーム木を表現する
+            インターフェースを先に定義することにしましょう。
+            CFRアルゴリズムをこのインターフェースのもとで実装することで、具体的なゲームを
+            考える際にはインスタンス化を行うだけでCFRアルゴリズムを適用できるようになります。
+          }
+
+          +p{
+            本記事では主にポーカーを念頭に置いているので、ゲームの構造を制限してそれに特化した
+            最適化を行えるようにします。
+            具体的には、手札を配るといったプライベートな情報を与えるイベントはゲームの最初にしか
+            発生しないという条件を加えます。
+            例えばテキサスホールデムを考えると、最初に全員に２枚の手札が配られた後は、
+            コミュニティカードの公開も含めてすべてのアクションはパブリックである
+            （全員が正しくアクションを把握できる）という構造になっていることが分かります。
+            また、各プレイヤーが持つ手札の構造は対称であるものとします。
+          }
+
+          +p{
+            ゲームにこのような条件を加えるとどのような最適化が行えるかというと、本来ならば
+            ゲームの最初に\dfn{偶然手番}がアクションを行い、その分だけゲーム木も枝分かれする
+            はずなのですが、これを飛ばしてパブリックな履歴のみを追跡し、終端履歴に到達したときに
+            初めて最初に遡ってすべての手札の可能性をまとめて計算する、といったことが行えるように
+            なります。
+            ゲーム木の枝分かれは再帰関数の複数回の呼び出しとなるのに比べて、最後にまとめて計算を
+            行うのはただのベクトル同士の演算となるためSIMD演算なども利用可能で、計算時間を
+            大きく削減できるようになります。
+          }
+
+          +p{
+            それでは具体的な実装に移っていきますが、まずはアクションを整数で表現することとし、
+            パブリックな履歴をアクションの配列で表現することにしましょう。
+          }
+
+          +code(```
+            /// アクションを表す型
+            pub type Action = u32;
+
+            /// パブリックな履歴を表す型
+            pub type PublicHistory = Vec<Action>;
+          ```);
+
+          +p{
+            続いて、ゲーム木のノードを表すインターフェースの定義を行います。
+            例によって、実装を簡単にするため今回考えるゲームは２人ゲームに限定してしまうこととします
+            （といっても関数 `evaluate()` 以外は以下の定義で３人以上のゲームにも対応できますが）。
+          }
+
+          +code(```
+            /// ゲーム木のノードを表すインターフェース
+            pub trait GameNode: Clone + Sync {
+                /// プライベートな手札の組合せの個数を返す
+                fn num_private_hands() -> usize;
+
+                /// 現在のパブリックな履歴を返す
+                fn public_history(&self) -> &PublicHistory;
+
+                /// 現在のノードが終端履歴かどうかを返す
+                fn is_terminal_node(&self) -> bool;
+
+                /// 現在の手番のプレイヤーを返す
+                fn current_player(&self) -> usize;
+
+                /// 着手可能なアクションの個数を返す
+                fn num_actions(&self) -> Action;
+
+                /// 着手可能なアクションの一覧を返す
+                fn actions(&self) -> std::ops::Range<Action> {
+                    0..self.num_actions()
+                }
+
+                /// `action` を行った後のノードを返す
+                fn play(&self, action: Action) -> Self;
+
+                /// 終端履歴において、counterfactual-到達確率が `pmi` のもとでの
+                /// `player` の counterfactual value を計算する
+                fn evaluate(&self, player: usize, pmi: &Vec<f64>) -> Vec<f64>;
+            }
+          ```);
+
+          +p{
+            関数 `num_private_hands()` が返す手札の組合せの個数は、ゲームの定義であって
+            ノードに関わらない値であるため、引数に `&self` がついていないことに注意してください。
+            この後説明する関数 `evaluate()` を除いては、関数の型や定義で特に理解が難しい点は
+            無いと思います。
+          }
+
+          +p{
+            それでは問題の `evaluate()` についてですが、関数の返り値と引数 `pmi` が実数の配列と
+            なっているのが説明を要する点でしょう。
+            これらの配列の要素数は `num_private_hands()` の値と一致しており、返り値の配列の各要素は
+            `player` が特定の手札を持っているときの counterfactual value となっています。
+            また、counterfactual-到達確率 `pmi` は相手（正確には自分以外）のプレイヤーが持っている
+            手札に応じて値が定まるものなので、引数 `pmi` の配列の各要素は相手のプレイヤーが特定の
+            手札を持っているときの counterfactual-到達確率となっています。
+          }
+        >
+
+        +subsection{CFRアルゴリズムの実装} <
+
+        >
       >
 
       +section{CFRの具体例1: Kuhn Poker} <
