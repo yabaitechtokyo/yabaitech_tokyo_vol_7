@@ -687,8 +687,8 @@ end = struct
         }
 
         +p{
-          これから紹介するプログラムは、`https://github.com/b-inary/yabai-vol7-src` にアクセスして
-          完全な形を先に確認することもできます。
+          これから紹介するプログラムは、`https://github.com/b-inary/yabai-vol7-src` にアクセス
+          することで完全な形を確認することもできます。
         }
 
         +subsection{ゲームノードのインターフェース定義} <
@@ -700,14 +700,14 @@ end = struct
           }
 
           +p{
-            本記事では主にポーカーを念頭に置いているので、ゲームの構造を制限してそれに特化した
+            本記事では主にポーカーを念頭に置いているので、ゲームの構造を制限してポーカーに特化した
             最適化を行えるようにします。
             具体的には、手札を配るといったプライベートな情報を与えるイベントはゲームの最初にしか
             発生しないという条件を加えます。
             例えばテキサスホールデムを考えると、最初に全員に２枚の手札が配られた後は、
             コミュニティカードの公開も含めてすべてのアクションはパブリックである
             （全員が正しくアクションを把握できる）という構造になっていることが分かります。
-            また、各プレイヤーが持つ手札の構造は対称であるものとします。
+            また、実装を簡単にするために、各プレイヤーが持つ手札の構造は対称であるものとしておきます。
           }
 
           +p{
@@ -717,8 +717,10 @@ end = struct
             初めて最初に遡ってすべての手札の可能性をまとめて計算する、といったことが行えるように
             なります。
             ゲーム木の枝分かれは再帰関数の複数回の呼び出しとなるのに比べて、最後にまとめて計算を
-            行うのはただのベクトル同士の演算となるためSIMD演算なども利用可能で、計算時間を
-            大きく削減できるようになります。
+            行うのはただのベクトル上の演算となることを考えると、計算時間を大きく削減できることが
+            分かりやすいでしょう。
+            ただし、このような最適化を施すことで、実装の読みやすさは犠牲になる部分があるので、
+            読みづらいと思われる点はその都度解説していこうと思います。
           }
 
           +p{
@@ -728,7 +730,7 @@ end = struct
 
           +code(```
             /// アクションを表す型
-            pub type Action = i32;
+            pub type Action = usize;
 
             /// パブリックな履歴を表す型
             pub type PublicHistory = Vec<Action>;
@@ -736,13 +738,12 @@ end = struct
 
           +p{
             続いて、ゲーム木のノードを表すインターフェースの定義を行います。
-            例によって、実装を簡単にするため今回考えるゲームは２人ゲームに限定してしまうこととします
+            実装を簡単にするため、例によって今回考えるゲームは２人ゲームに限定してしまうこととします
             （といっても関数 `evaluate()` 以外は以下の定義で３人以上のゲームにも対応できますが）。
           }
 
           +code(```
             use std::collections::HashMap;
-            use std::marker::PhantomData;
 
             /// ゲーム木のノードを表すインターフェース
             pub trait GameNode {
@@ -774,13 +775,14 @@ end = struct
 
                 /// 終端履歴において、counterfactual-到達確率が `pmi` のもとでの
                 /// `player` の counterfactual value を計算する
-                fn evaluate(&self, player: usize, pmi: &Vec<f64>) -> Vec<f64>;
+                fn evaluate(&self, player: i32, pmi: &Vec<f64>) -> Vec<f64>;
             }
           ```);
 
           +p{
             関数 `root()` および `num_private_hands()` の定義は、ゲームそのものの定義であって
-            現在のノードには関わらないため、引数に `&self` がついていないことに注意してください。
+            現在のノードには関わらないものであるため、引数に `&self` がついていません
+            （C++でいう `static` なメンバ関数に対応します）。
             この後説明する関数 `evaluate()` を除いては、関数の型や定義で特に理解が難しい点は
             無いと思います。
           }
@@ -790,7 +792,7 @@ end = struct
             なっているのが説明を要する点でしょう。
             これらの配列の要素数は `num_private_hands()` の値と一致しており、返り値の配列の各要素は
             `player` が特定の手札を持っているときの counterfactual value となっています。
-            また、counterfactual-到達確率 `pmi` は相手（正確には自分以外）のプレイヤーが持っている
+            また、counterfactual-到達確率 `pmi` は、相手（正確には自分以外）のプレイヤーが持っている
             手札に応じて値が定まるものなので、引数 `pmi` の配列の各要素は相手のプレイヤーが特定の
             手札を持っているときの counterfactual-到達確率となっています。
           }
@@ -805,10 +807,12 @@ end = struct
 
           +subsubsection{CFRアルゴリズムを管理する構造体の定義} <
             +p{
-              まずは、CFRアルゴリズムを管理する構造体の定義から見ていきます。
+              まずは、CFRアルゴリズムを管理する構造体の定義から見ていきましょう。
             }
 
             +code(```
+              use std::marker::PhantomData;
+
               #[derive(Default)]
               pub struct CFRMinimizer<T> {
                   /// リグレットの累積値
@@ -833,14 +837,14 @@ end = struct
 
             +p{
               Rustでは構造体の定義にはフィールドのみが含まれ、メソッドは `impl` ブロックに記述
-              することになるので、とりあえずはこのフィールドを眺めることにしましょう。
+              することになるので、とりあえずはこのフィールドたちを眺めることにしましょう。
               `alpha_t, beta_t, gamma_t` の３つのフィールドは非本質的で、`_phantom` に至っては
-              Rustの事情で必要になっているだけのフィールドなのでどうでも良いのですが、
+              Rustの事情で必要になっているだけのフィールドなので本当にどうでも良いのですが、
               上２つの `cum_regret` と `cum_strategy` については説明が必要でしょう。
             }
 
             +p{
-              これら２つの変数の型は `HashMap<PublicHistory, Vec<Vec<f64>>>` となっています。
+              これら２つのフィールドの型は `HashMap<PublicHistory, Vec<Vec<f64>>>` となっています。
               それぞれリグレットの累積値と各時刻の戦略の和を管理している変数ですが、パブリックな
               履歴がハッシュマップのキーとなっているのは良いものの、それで返ってくる値が
               二次元配列となっているのはどういうことなのでしょうか。
@@ -889,10 +893,10 @@ end = struct
 
                   // 自己対戦を繰り返す
                   for t in 0..num_iterations {
-                      let t_f64 = (t + 1) as f64;
+                      let t_f64 = t as f64;
                       self.alpha_t = t_f64.powf(Self::ALPHA) / (t_f64.powf(Self::ALPHA) + 1.0);
                       self.beta_t = t_f64.powf(Self::BETA) / (t_f64.powf(Self::BETA) + 1.0);
-                      self.gamma_t = t_f64.powf(Self::GAMMA);
+                      self.gamma_t = (t_f64 + 1.0).powf(Self::GAMMA);
 
                       // プレイヤー毎に処理を行う
                       for player in 0..2 {
@@ -901,14 +905,241 @@ end = struct
                   }
               }
             ```);
+
+            +p{
+              まず、`build_tree()` はゲーム木を構築して `cum_regret` および `cum_strategy` を
+              初期化する関数で、次のような特に工夫の要らない再帰関数として定義されます：
+            }
+
+            +code(```
+              /// ゲーム木を構築する
+              fn build_tree(node: &T, tree: &mut HashMap<PublicHistory, Vec<Vec<f64>>>) {
+                  if node.is_terminal_node() {
+                      return;
+                  }
+
+                  tree.insert(
+                      node.public_history().clone(),
+                      vec![vec![0.0; T::num_private_hands()]; node.num_actions() as usize],
+                  );
+
+                  for action in node.actions() {
+                      Self::build_tree(&node.play(action), tree);
+                  }
+              }
+            ```);
+
+            +p{
+              さて、 `cum_regret` および `cum_strategy` を初期化したらいよいよ自己対戦を繰り返す
+              ことになります。
+              ここで、何となくさらっと流されやすい点ですが、各時刻において「プレイヤー毎に」
+              関数 `cfr_recursive()` による処理を行っている点は注意が必要です。
+            }
+
+            +p{
+              関数 `cfr_recursive()` の仕事は、後ほど詳しく見ていくことになりますが、 `cum_regret`
+              のうち手番が `player` である部分と、 `cum_strategy` のうち手番が `player` でない部分の
+              更新を行うことです。
+              逆に言えば、例えば `cum_regret` のうち、手番が引数 `player` でないような部分は更新が
+              行われません。
+              これは一見するとおかしな実装で、バニラなCFRアルゴリズムはすべてのプレイヤーの
+              リグレットや戦略を\dfn{同時更新(simultaneous update)}することを前提にしていたはずなのに、
+              この実装ではリグレットと戦略が\dfn{交互更新(alternating update)}されることになります。
+              果たしてそれで大丈夫なのかと思われるかもしれませんが、実は実用上は交互更新の方が
+              収束が早いことが知られており、そのため今回の実装でも交互更新をあえて採用しています。
+              理論的にも、解析は難しくなるものの収束は引き続き保証されるようです
+              \footnote{N. Burch, M. Moravcik, and M. Schmid. \emph{Revisiting CFR+ and alternating
+              updates.} Journal of Artificial Intelligence Research, 64:429–443. 2019.}。
+            }
           >
 
           +subsubsection{Counterfactual value の再帰的な計算} <
+            +p{
+              それでは、先ほど後回しにしてしまった `cfr_recursive()` の実装に移っていきます。
+              先述したように、 `cfr_recursive()` の仕事は `cum_regret` と `cum_strategy` の
+              更新ですが、関数そのものの返り値は counterfactual value となっていて、関数名の通り
+              これを再帰的に計算します。
+            }
 
+            +p{
+              さすがにこの関数はそれなりの実装量になってしまうため、紙面で読むのはややタフかも
+              しれませんが、頑張って見ていきましょう。
+            }
+
+            +code(```
+              /// `player` の counterfactual value を再帰的に計算する
+              fn cfr_recursive(
+                  &mut self,
+                  node: &T,
+                  player: i32,
+                  pi: &Vec<f64>,
+                  pmi: &Vec<f64>,
+              ) -> Vec<f64> {
+                  // 終端履歴なら単に counterfactual value を返す
+                  if node.is_terminal_node() {
+                      return node.evaluate(player, pmi);
+                  }
+
+                  // 現在のパブリックな履歴を取得
+                  let public_history = node.public_history();
+
+                  // 現時刻の戦略を regret-matching アルゴリズムによって求める
+                  let strategy = Self::regret_matching(&self.cum_regret[public_history]);
+
+                  // 返り値となる counterfactual value を0で初期化
+                  let mut cfvalue = vec![0.0; T::num_private_hands()];
+
+                  if node.current_player() == player {
+                      let mut cfvalue_action_vec = Vec::with_capacity(node.num_actions());
+
+                      // 各アクションに対する counterfactual value を計算する
+                      for action in node.actions() {
+                          let pi = mul_vector(&pi, &strategy[action]);
+                          let mut cfvalue_action =
+                              self.cfr_recursive(&node.play(action), player, &pi, pmi);
+                          cfvalue_action_vec.push(cfvalue_action.clone());
+                          mul_assign_vector(&mut cfvalue_action, &strategy[action]);
+                          add_assign_vector(&mut cfvalue, &cfvalue_action);
+                      }
+
+                      // リグレットの累積値を更新
+                      for action in node.actions() {
+                          let cum_regret: &mut Vec<f64> =
+                              &mut self.cum_regret.get_mut(public_history).unwrap()[action];
+
+                          // alpha_t >= beta_t を仮定
+                          let regret_alpha = mul_scalar(cum_regret, self.alpha_t);
+                          let regret_beta = mul_scalar(cum_regret, self.beta_t);
+                          cum_regret.iter_mut().enumerate().for_each(|(i, el)| {
+                              *el = regret_alpha[i].max(regret_beta[i]);
+                          });
+
+                          add_assign_vector(cum_regret, &cfvalue_action_vec[action]);
+                          sub_assign_vector(cum_regret, &cfvalue);
+                      }
+                  } else {
+                      for action in node.actions() {
+                          let mut pmi = mul_vector(&pmi, &strategy[action]);
+                          add_assign_vector(
+                              &mut cfvalue,
+                              &self.cfr_recursive(&node.play(action), player, pi, &pmi),
+                          );
+
+                          // 戦略の和を更新
+                          let cum_strategy: &mut Vec<f64> =
+                              &mut self.cum_strategy.get_mut(public_history).unwrap()[action];
+                          mul_assign_scalar(&mut pmi, self.gamma_t);
+                          add_assign_vector(cum_strategy, &pmi);
+                      }
+                  }
+
+                  cfvalue
+              }
+            ```);
+
+            +p{
+              まず、はじめに関数 `cfr_recursive` の引数についてですが、 `node` と `player` に
+              ついては特に説明は要らないでしょう。
+              `pi` と `pmi` は、現在の引数 `node` への到達確率のうち、 `player` の寄与と `player`
+              以外の寄与を表しています。
+            }
+
+            +p{
+              この再帰関数の終了条件は、引数 `node` が終端履歴に達することです。
+              終端履歴に達したら、ゲームの定義に基づいて counterfactual value を計算し、その値を
+              返します。
+              引数 `node` が終端履歴でなかった場合、再帰的に子ノードの計算を行うことになります。
+            }
+
+            +p{
+              それでは引数 `node` が終端履歴でなかった場合の処理についてですが、まず現時刻における
+              戦略が regret-matching アルゴリズムによって求められます。
+              この regret-matching アルゴリズムの実装は簡単ですね：
+            }
+
+            +code(```
+              /// regret-matching アルゴリズム
+              fn regret_matching(regrets: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+                  let num_actions = regrets.len();
+                  let num_private_hands = T::num_private_hands();
+
+                  let mut denom = vec![0.0; num_private_hands];
+                  for regret_action in regrets {
+                      add_assign_vector(&mut denom, &nonneg_vector(regret_action));
+                  }
+
+                  let mut strategy = Vec::with_capacity(num_actions);
+                  for regret_action in regrets {
+                      let mut norm_regret_action = nonneg_vector(regret_action);
+                      div_assign_vector(&mut norm_regret_action, &denom, 1.0 / num_actions as f64);
+                      strategy.push(norm_regret_action);
+                  }
+
+                  strategy
+              }
+            ```);
+
+            +p{
+              ここで、 `add_assign_vector` といった関数がいくつか出現していますが、これは配列の
+              各要素を加算代入したりする関数で、次のような定義を持ちます。
+              処理の内容は何となく分かると思いますので、いちいち全部紹介はしないことにします。
+            }
+
+            +code(```
+              #[inline]
+              fn add_assign_vector(lhs: &mut Vec<f64>, rhs: &Vec<f64>) {
+                  lhs.iter_mut().zip(rhs).for_each(|(l, r)| *l += *r);
+              }
+            ```);
+
+            +p{
+              あとは、counterfactual value の計算を再帰的に行いながら、現在の手番が `player` で
+              あるなら `cum_regret` を、そうでないなら `cum_strategy` を適切に更新していくだけです。
+              ${\cdots\cdots}と、文章で書くのは簡単ですが、足し算や掛け算などをバグ無く正確に
+              記述するのは結構大変な作業です。
+              行数で言ってしまえば60行程度と、それほど長いというわけではない関数ですが、
+              デバッグも容易ではありませんし、実装の与えられていない状態から書き起こそうと思うと
+              なかなか骨が折れるでしょう。
+            }
           >
 
           +subsubsection{平均戦略を出力する} <
+            +p{
+              さて、counterfactual value の再帰的計算という鬼門さえ抜けてしまえば、最後に各時刻の
+              重み付き平均戦略を求めるだけです。
+              実装は以下のような感じになるでしょう：
+            }
 
+            +code(```
+              /// フィールド `cum_strategy` を参照して平均戦略を返す
+              pub fn get_strategy(&self) -> HashMap<PublicHistory, Vec<Vec<f64>>> {
+                  let mut average_strategy = HashMap::new();
+                  let num_private_hands = T::num_private_hands();
+
+                  for (public_history, cum_strategy) in &self.cum_strategy {
+                      let num_actions = cum_strategy.len();
+
+                      let mut denom = vec![0.0; num_private_hands];
+                      for cum_value in cum_strategy {
+                          add_assign_vector(&mut denom, cum_value);
+                      }
+
+                      let mut strategy = Vec::with_capacity(num_actions);
+                      for cum_value in cum_strategy {
+                          strategy.push(div_vector(cum_value, &denom));
+                      }
+
+                      average_strategy.insert(public_history.clone(), strategy);
+                  }
+
+                  average_strategy
+              }
+            ```);
+
+            +p{
+              処理の雰囲気は regret-matching と似ていますね。
+              特にこれと言って解説が必要となるような難しい点もなく、ホッとする内容です。
+            }
           >
         >
       >
