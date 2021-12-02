@@ -746,7 +746,7 @@ end = struct
             use std::collections::HashMap;
 
             /// ゲーム木のノードを表すインターフェース
-            pub trait GameNode {
+            pub trait GameNode: Default {
                 /// ゲームの初期履歴を返す
                 fn root() -> Self;
 
@@ -938,13 +938,13 @@ end = struct
 
             +p{
               関数 `cfr_recursive()` の仕事は、後ほど詳しく見ていくことになりますが、 `cum_regret`
-              のうち手番が `player` である部分と、 `cum_strategy` のうち手番が `player` でない部分の
-              更新を行うことです。
-              逆に言えば、例えば `cum_regret` のうち、手番が引数 `player` でないような部分は更新が
+              および `cum_strategy` のうち、手番が `player` であるような部分の更新を行うことです。
+              逆に言えば、これらのフィールドのうち、手番が `player` でないような部分は更新が
               行われません。
               これは一見するとおかしな実装で、バニラなCFRアルゴリズムはすべてのプレイヤーの
-              リグレットや戦略を\dfn{同時更新(simultaneous update)}することを前提にしていたはずなのに、
-              この実装ではリグレットと戦略が\dfn{交互更新(alternating update)}されることになります。
+              リグレットや戦略を\dfn{同時更新(simultaneous update)}することを前提にしていた
+              はずなのに、この実装ではリグレットや戦略がプレイヤー毎に
+              \dfn{交互更新(alternating update)}されることになります。
               果たしてそれで大丈夫なのかと思われるかもしれませんが、実は実用上は交互更新の方が
               収束が早いことが知られており、そのため今回の実装でも交互更新をあえて採用しています。
               理論的にも、解析は難しくなるものの収束は引き続き保証されるようです
@@ -984,7 +984,7 @@ end = struct
                   let public_history = node.public_history();
 
                   // 現時刻の戦略を regret-matching アルゴリズムによって求める
-                  let strategy = Self::regret_matching(&self.cum_regret[public_history]);
+                  let mut strategy = Self::regret_matching(&self.cum_regret[public_history]);
 
                   // 返り値となる counterfactual value を0で初期化
                   let mut cfvalue = vec![0.0; T::num_private_hands()];
@@ -1002,34 +1002,35 @@ end = struct
                           add_assign_vector(&mut cfvalue, &cfvalue_action);
                       }
 
-                      // リグレットの累積値を更新
+                      // リグレットの累積値と戦略の和を更新
                       for action in node.actions() {
                           let cum_regret: &mut Vec<f64> =
                               &mut self.cum_regret.get_mut(public_history).unwrap()[action];
+                          let cum_strategy: &mut Vec<f64> =
+                              &mut self.cum_strategy.get_mut(public_history).unwrap()[action];
 
-                          // alpha_t >= beta_t を仮定
-                          let regret_alpha = mul_scalar(cum_regret, self.alpha_t);
-                          let regret_beta = mul_scalar(cum_regret, self.beta_t);
-                          cum_regret.iter_mut().enumerate().for_each(|(i, el)| {
-                              *el = regret_alpha[i].max(regret_beta[i]);
+                          cum_regret.iter_mut().for_each(|el| {
+                              *el *= if *el >= 0.0 {
+                                  self.alpha_t
+                              } else {
+                                  self.beta_t
+                              }
                           });
 
                           add_assign_vector(cum_regret, &cfvalue_action_vec[action]);
                           sub_assign_vector(cum_regret, &cfvalue);
+
+                          mul_assign_scalar(&mut strategy[action], self.gamma_t);
+                          mul_assign_vector(&mut strategy[action], &pi);
+                          add_assign_vector(cum_strategy, &strategy[action]);
                       }
                   } else {
                       for action in node.actions() {
-                          let mut pmi = mul_vector(&pmi, &strategy[action]);
+                          let pmi = mul_vector(&pmi, &strategy[action]);
                           add_assign_vector(
                               &mut cfvalue,
                               &self.cfr_recursive(&node.play(action), player, pi, &pmi),
                           );
-
-                          // 戦略の和を更新
-                          let cum_strategy: &mut Vec<f64> =
-                              &mut self.cum_strategy.get_mut(public_history).unwrap()[action];
-                          mul_assign_scalar(&mut pmi, self.gamma_t);
-                          add_assign_vector(cum_strategy, &pmi);
                       }
                   }
 
@@ -1042,6 +1043,9 @@ end = struct
               ついては特に説明は要らないでしょう。
               `pi` と `pmi` は、現在の引数 `node` への到達確率のうち、 `player` の寄与と `player`
               以外の寄与を表しています。
+              また、返り値は counterfactual value であると述べましたが、型が実数の配列となって
+              いるのはどういうことかというと、この配列の各要素は例によって `player` が特定の手札を
+              持っているときの counterfactual value を表しています。
             }
 
             +p{
@@ -1094,7 +1098,7 @@ end = struct
 
             +p{
               あとは、counterfactual value の計算を再帰的に行いながら、現在の手番が `player` で
-              あるなら `cum_regret` を、そうでないなら `cum_strategy` を適切に更新していくだけです。
+              あるなら `cum_regret` と `cum_strategy` も併せて適切に更新していくだけです。
               ${\cdots\cdots}と、文章で書くのは簡単ですが、足し算や掛け算などをバグ無く正確に
               記述するのは結構大変な作業です。
               行数で言ってしまえば60行程度と、それほど長いというわけではない関数ですが、
