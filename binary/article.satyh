@@ -810,8 +810,8 @@ end = struct
                 /// プライベートな手札の組合せの個数を返す
                 fn num_private_hands() -> usize;
 
-                /// 終端履歴 `node` において、counterfactual-到達確率が `pmi` のもとでの
-                /// `player` の counterfactual value を計算する
+                /// 終端履歴 `node` において、偶然手番の寄与を含まない counterfactual-到達確率が
+                /// `pmi` のもとでの `player` の counterfactual value を計算する
                 fn evaluate(&self, node: &Self::Node, player: usize, pmi: &Vec<f64>) -> Vec<f64>;
             }
           ```);
@@ -1316,10 +1316,10 @@ end = struct
 
           +subsubsection{可搾取量の計算} <
             +p{
-              さて、残った方の可搾取量を計算する関数ですが、こちらはちょっとマジカルな感じのある
+              さて、残った方の可搾取量を計算する関数ですが、こちらはちょっとマジカルな感じもある
               実装となっています。
-              実装は簡潔だが、なぜこれで正しく動くのかがさっぱり分からないという類のやつですね。
-              実のところ、私もなぜこれで正しく動いているのかよく分かっていません。
+              実装は簡潔だが、なぜこれで正しく動くのかがなかなか分からないという類のやつですね。
+              まあとりあえず先に実装を見てみることにしましょう。
             }
 
             +code(```
@@ -1329,13 +1329,13 @@ end = struct
                   strategy: &HashMap<PublicHistory, Vec<Vec<f64>>>,
               ) -> f64 {
                   let ones = vec![1.0; T::num_private_hands()];
-                  let br0 = best_cfvalue_rec(game, &T::root(), 0, &ones, strategy);
-                  let br1 = best_cfvalue_rec(game, &T::root(), 1, &ones, strategy);
+                  let br0 = best_cfvalues_rec(game, &T::root(), 0, &ones, strategy);
+                  let br1 = best_cfvalues_rec(game, &T::root(), 1, &ones, strategy);
                   br0.iter().sum::<f64>() + br1.iter().sum::<f64>()
               }
 
               /// 最適応答戦略の counterfactual value を再帰的に計算するヘルパー
-              fn best_cfvalue_rec<T: Game>(
+              fn best_cfvalues_rec<T: Game>(
                   game: &T,
                   node: &T::Node,
                   player: usize,
@@ -1349,7 +1349,7 @@ end = struct
                   if node.current_player() == player {
                       node.actions()
                           .map(|action| {
-                              best_cfvalue_rec(game, &node.play(action), player, pmi, strategy)
+                              best_cfvalues_rec(game, &node.play(action), player, pmi, strategy)
                           })
                           .reduce(|v, w| max_vector(&v, &w))
                   } else {
@@ -1357,7 +1357,7 @@ end = struct
                       node.actions()
                           .map(|action| {
                               let pmi = mul_vector(&pmi, &current_strategy[action]);
-                              best_cfvalue_rec(game, &node.play(action), player, &pmi, strategy)
+                              best_cfvalues_rec(game, &node.play(action), player, &pmi, strategy)
                           })
                           .reduce(|v, w| add_vector(&v, &w))
                   }
@@ -1366,19 +1366,28 @@ end = struct
             ```);
 
             +p{
-              どうですか？　
-              なぜこの実装で可搾取量が計算できるのか理解できそうでしょうか。
-              昔にうんうん唸りながらこの実装を書いたような記憶があるので、過去の私は完全に
-              理解していたのかもしれませんが、今の私には何も分かりません。
-              そもそもなぜヘルパーの返り値が counterfactual value の配列なのかというところから
-              分からないのでどうしようもないですね。
-              理解が難しい処理にはコメントなどをちゃんと残しておけという話です。
+              ヘルパー関数である `best_cfvalues_rec()` は、コメントにも書いてあるように、
+              `player` が最適応答戦略を取ったときの counterfactual value を再帰的に求める関数です。
+              実際、終端履歴に到達したら単に `evaluate()` を呼んでいるだけであることが分かります。
             }
 
             +p{
-              記事を読んでくださっている方からしたら不安しかないとは思いますが、テストをした限りでは
-              どうやらこれで正しく動いているようですので、気になる方はなぜこの実装で正しく動くのか、
-              ぜひ考察をしてみてください。
+              さて、実はこの counterfactual value は利得の期待値への寄与とイコールに
+              なっているのですが、ここで「最適応答戦略には必ず純粋戦略が含まれている」という
+              重要な事実を利用しています。
+              というのも、`player` 以外の戦略は固定されているものとしているのですから、
+              自分が相手に搾取されてしまう可能性は考える必要がなく、従って単に利得の期待値が最も
+              大きくなるようなアクションを常に選べば利得を最大化できるためです。
+              よって、各履歴${h}における ${\app{\pi_i^\sigma}{h}} は0か1のどちらかであるとしてよく、
+              ${\app{\pi_i^\sigma}{h}} を追跡したりする必要が無いのです。
+            }
+
+            +p{
+              よって、ヘルパー関数 `best_cfvalues_rec()` は ${\app{\pi_{-i}^\sigma}{h}} だけを
+              引数にとって追跡します。
+              現在の `node` の手番が `player` であるなら、counterfactual value、すなわち利得の
+              期待値への寄与が最大となるアクションを選択し、手番が `player` でないなら単に
+              counterfactual value を加算します。
             }
           >
         >
