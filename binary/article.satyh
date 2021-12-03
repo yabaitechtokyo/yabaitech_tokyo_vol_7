@@ -14,6 +14,24 @@ end = struct
   open Code2
   open EasyTableAlias
 
+  let vop-scheme charf s =
+    let mop = charf MathOp s in
+      math-pull-in-scripts MathOp MathOp
+        (fun moptS moptT -> (
+          let m =
+            match moptS with
+            | None     -> mop
+            | Some(mS) -> math-lower mop mS
+          in
+            match moptT with
+            | None     -> m
+            | Some(mT) -> math-upper m mT
+        ))
+
+  let vop = vop-scheme math-char
+
+  let-math \argmax = vop `arg max`
+
   let article = '<
     +chapter(|
       bibliography = [];
@@ -576,7 +594,7 @@ end = struct
               与えられたときに、次のように定められる戦略です：
 
               \eqn?:(AZMathEquation.notag)(${
-                \app{b_i}{\sigma_{-i}} = \mathrm{arg} \max_{\sigma_i \in \Sigma_i} \app{u_i}{\sigma_i,\ \sigma_{-i}}.
+                \app{b_i}{\sigma_{-i}} = \argmax_{\sigma_i \in \Sigma_i} \app{u_i}{\sigma_i,\ \sigma_{-i}}.
               });
 
               つまり、最適応答戦略とはその名の通り、${\sigma_{-i}}が定まっているもとで
@@ -1233,8 +1251,136 @@ end = struct
         >
 
         +subsection{ユーティリティ関数の実装} <
-          +p{\REMAINS{利得の期待値を計算する関数の実装}}
-          +p{\REMAINS{可搾取量を計算する関数の実装}}
+          +p{
+            と、ゲームの各インスタンスを見に行く前に、得られた戦略を解析するユーティリティ関数も
+            ついでに実装してしまいましょう。
+            具体的には、戦略の組が与えられたときに利得の期待値を計算する関数と、可搾取量を計算する
+            関数を実装していきます。
+            CFRアルゴリズムの実行結果が早く見たいところかもしれませんが、もう少しだけお付き合い
+            くださいね。
+          }
+
+          +subsubsection{利得の期待値の計算} <
+            +p{
+              それではまず利得の期待を計算する関数の方から見ていきます。
+              と言っても、再帰関数に抵抗が無い方ならば利得の期待値を計算する処理は素直に書けるでしょう。
+              問題は `Game` トレイトの `evaluate()` メソッドが厄介な型をしているという点ですが、
+              ${\app{\pi^\sigma}{h} = \app{\pi_i^\sigma}{h} \cdot \app{\pi_{-i}^\sigma}{h}} で
+              あるということに気づければ、終端履歴における処理の内容も理解できると思います。
+            }
+
+            +code(```
+              /// 戦略 `strategy` のもとでの `player` の利得の期待値を返す
+              pub fn compute_ev<T: Game>(
+                  game: &T,
+                  player: usize,
+                  strategy: &HashMap<PublicHistory, Vec<Vec<f64>>>,
+              ) -> f64 {
+                  let ones = vec![1.0; T::num_private_hands()];
+                  compute_ev_rec(game, &T::root(), player, &ones, &ones, strategy)
+              }
+
+              /// 利得の期待値を再帰的に計算するヘルパー
+              fn compute_ev_rec<T: Game>(
+                  game: &T,
+                  node: &T::Node,
+                  player: usize,
+                  pi: &Vec<f64>,
+                  pmi: &Vec<f64>,
+                  strategy: &HashMap<PublicHistory, Vec<Vec<f64>>>,
+              ) -> f64 {
+                  if node.is_terminal() {
+                      // `dot` は内積を計算する関数
+                      return dot(&game.evaluate(node, player, pmi), &pi);
+                  }
+
+                  let current_strategy = &strategy[node.public_history()];
+                  if node.current_player() == player {
+                      node.actions()
+                          .map(|action| {
+                              let pi = mul_vector(&current_strategy[action], &pi);
+                              compute_ev_rec(game, &node.play(action), player, &pi, pmi, strategy)
+                          })
+                          .sum()
+                  } else {
+                      node.actions()
+                          .map(|action| {
+                              let pmi = mul_vector(&current_strategy[action], &pmi);
+                              compute_ev_rec(game, &node.play(action), player, pi, &pmi, strategy)
+                          })
+                          .sum()
+                  }
+              }
+            ```);
+          >
+
+          +subsubsection{可搾取量の計算} <
+            +p{
+              さて、残った方の可搾取量を計算する関数ですが、こちらはちょっとマジカルな感じのある
+              実装となっています。
+              実装は簡潔だが、なぜこれで正しく動くのかがさっぱり分からないという類のやつですね。
+              実のところ、私もなぜこれで正しく動いているのかよく分かっていません。
+            }
+
+            +code(```
+              /// 戦略の組 `strategy` の可搾取量を返す
+              pub fn compute_exploitability<T: Game>(
+                  game: &T,
+                  strategy: &HashMap<PublicHistory, Vec<Vec<f64>>>,
+              ) -> f64 {
+                  let ones = vec![1.0; T::num_private_hands()];
+                  let br0 = best_cfvalue_rec(game, &T::root(), 0, &ones, strategy);
+                  let br1 = best_cfvalue_rec(game, &T::root(), 1, &ones, strategy);
+                  br0.iter().sum::<f64>() + br1.iter().sum::<f64>()
+              }
+
+              /// 最適応答戦略の counterfactual value を再帰的に計算するヘルパー
+              fn best_cfvalue_rec<T: Game>(
+                  game: &T,
+                  node: &T::Node,
+                  player: usize,
+                  pmi: &Vec<f64>,
+                  strategy: &HashMap<PublicHistory, Vec<Vec<f64>>>,
+              ) -> Vec<f64> {
+                  if node.is_terminal() {
+                      return game.evaluate(node, player, pmi);
+                  }
+
+                  if node.current_player() == player {
+                      node.actions()
+                          .map(|action| {
+                              best_cfvalue_rec(game, &node.play(action), player, pmi, strategy)
+                          })
+                          .reduce(|v, w| max_vector(&v, &w))
+                  } else {
+                      let current_strategy = &strategy[node.public_history()];
+                      node.actions()
+                          .map(|action| {
+                              let pmi = mul_vector(&pmi, &current_strategy[action]);
+                              best_cfvalue_rec(game, &node.play(action), player, &pmi, strategy)
+                          })
+                          .reduce(|v, w| add_vector(&v, &w))
+                  }
+                  .unwrap()
+              }
+            ```);
+
+            +p{
+              どうですか？　
+              なぜこの実装で可搾取量が計算できるのか理解できそうでしょうか。
+              昔にうんうん唸りながらこの実装を書いたような記憶があるので、過去の私は完全に
+              理解していたのかもしれませんが、今の私には何も分かりません。
+              そもそもなぜヘルパーの返り値が counterfactual value の配列なのかというところから
+              分からないのでどうしようもないですね。
+              理解が難しい処理にはコメントなどをちゃんと残しておけという話です。
+            }
+
+            +p{
+              記事を読んでくださっている方からしたら不安しかないとは思いますが、テストをした限りでは
+              どうやらこれで正しく動いているようですので、気になる方はなぜこの実装で正しく動くのか、
+              ぜひ考察をしてみてください。
+            }
+          >
         >
       >
 
