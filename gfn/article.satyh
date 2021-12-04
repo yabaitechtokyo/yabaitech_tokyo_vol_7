@@ -2879,6 +2879,13 @@ end = struct
             \url(`https://github.com/gfngfn/game_tianjiupai`);
           }
         >
+        +p{
+          実際に対戦している様子は\ref-figure(`fig:tianjiupai-screenshot`);のような具合です．
+
+          \figure?:(`fig:tianjiupai-screenshot`){対局時の様子}<
+            +external-image(`gfn/tianjiupai-screenshot-monochrome.jpg`);
+          >
+        }
         +subsection{要件}<
           +p{
             比較的小規模に作り始めて少しずつ改良していこうということで，ゲームサーバの要件は以下のようにしました：
