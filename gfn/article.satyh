@@ -2719,13 +2719,18 @@ end = struct
                 ** 組み合わせ可能な文牌2枚と武牌2枚：\quad;天天九九，地地八八，人人七七，和和五五
             }%
 
-            \figure?:(`fig:tianjiupai-combinations`){牌を出すときの組み合わせ}<
-              +p{\REMAINS{出し方の図}}
+            \figure?:(`fig:tianjiupai-combinations-1`){牌を出すときの組み合わせ（1枚出し・2枚出し）}<
+              +external-image(`gfn/tianjiupai-combinations-1.jpg`);
+            >%
+            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
+              +p{\REMAINS{3枚出しと4枚出し}}
             >%
 
-            わかりやすさのためそれぞれの組み合わせを描いたものを\ref-figure(`fig:tianjiupai-combinations`);に掲げました．
+            わかりやすさのためそれぞれの組み合わせを描いたものを\ref-figure(`fig:tianjiupai-combinations-1`);
+            および\ref-figure(`fig:tianjiupai-combinations-2`);に掲げました．
             文尊と武尊は合わせて\dfn{至尊}（ジーズン）と呼ばれ，少し特殊な組み合わせです．
-            至尊以外のパターンはそのパターン内でのみ強弱が定義されています．
+            至尊以外のパターンはそのパターン内で強弱が定義されており，
+            図中で左ほど強い組み合わせです．
           }
           +p{
             至尊が打ち出しの場合は少し特殊なので後で触れるとして，
