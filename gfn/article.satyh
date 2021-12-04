@@ -2722,9 +2722,6 @@ end = struct
             \figure?:(`fig:tianjiupai-combinations-1`){牌を出すときの組み合わせ（1枚出し・2枚出し）}<
               +external-image(`gfn/tianjiupai-combinations-1.jpg`);
             >%
-            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
-              +p{\REMAINS{3枚出しと4枚出し}}
-            >%
 
             わかりやすさのためそれぞれの組み合わせを描いたものを\ref-figure(`fig:tianjiupai-combinations-1`);
             および\ref-figure(`fig:tianjiupai-combinations-2`);に掲げました．
@@ -2742,6 +2739,10 @@ end = struct
               * 打ち出しと同パターンでかつ真に強い牌の組み合わせを表向きで出す．
               * 打ち出しと同枚数の牌をどんな組み合わせでもよいので裏向きで出す．
             }%
+
+            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
+              +external-image(`gfn/tianjiupai-combinations-2.jpg`);
+            >%
 
             裏向きで出された牌はそのトリックで必ず負けることを表します．
             つまり，2番目のプレイヤーは，勝てる組み合わせを出す場合は表向きにして出し，
