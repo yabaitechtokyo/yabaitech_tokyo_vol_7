@@ -216,6 +216,22 @@ end = struct
       url = `https://github.com/ninenines/cowboy`;
       year = 2011;
     |));
+    (`IgarashiThiemannVasconcelosWadler2017`, Article(|
+      %issue_date = {September 2017},
+      %publisher = {Association for Computing Machinery},
+      %address = {New York, NY, USA},
+      %url = {https://doi.org/10.1145/3110282},
+      %doi = {10.1145/3110282},
+      %month = {aug},
+      %articleno = {38},
+      author = {| Atsushi Igarashi | Peter Thiemann | Vasco T. Vasconcelos | Philip Wadler |};
+      title = {Gradual session types};
+      journal = {Proceedings of the ACM on Programming Languages};
+      volume = Some(1);
+      number = Some({ICFP});
+      pages = (1, 28);
+      year = 2017;
+    |));
     (`ImNakataGarriguePark2011`, InProceedings(|
       %issue_date = {October 2011},
       %publisher = {Association for Computing Machinery},
@@ -2179,7 +2195,7 @@ end = struct
             今のところ知る限りSesterl独自の方法です．
           }
         >
-        +subsection{ファンクタによるOTPライブラリの定式化}<
+        +subsection?:(`subsec:otp-as-functors`){ファンクタによるOTPライブラリの定式化}<
           +p{
             さて，OTPライブラリを（OTP Design Principlesに従う形で）
             自然に使えるような言語設計にすることがSesterlの要件のひとつでした．
@@ -2779,7 +2795,8 @@ end = struct
           }
           +subsubsection{局の終了時の得点移動}<
             +p{
-              局が終わったら，負けた人は，基本的には取った山（＝牌4枚をひとかたまりにして積んだもの）の数に応じて次のように点数を払います：
+              局が終わったら，負けた人は，基本的には取った山（＝牌4枚をひとかたまりにして積んだもの）の数に応じて
+              次のように点数を払います：
 
               \listing{
                 * 1山も取れなかった人は ${5} 点を場に出す．
@@ -2790,9 +2807,11 @@ end = struct
               特に，4山取って負けた人は点の増減はなく，5山以上取った人は負けでも点が増えます．
               1山も取れなかった人は “追加の罰金1点がある” ことに注意してください．
               子が全員精算を終えたら，勝った人は場に出ている点を全部受け取って得点の移動は終了で，次の局に移ります．
-              ただし，${m} 連荘（連荘していない親を ${1} 連荘と扱います）していた親が負けた場合，親の支払いは ${\paren{m + 1}} 倍になります．
+              ただし，${m} 連荘（連荘していない親を ${1} 連荘と扱います）していた親が負けた場合，
+              親の支払いは ${\paren{m + 1}} 倍になります．
               また，${m} 連荘していた親が更に勝った場合，負けた子の支払いはそれぞれ ${\paren{m + 1}} 倍になります．
-              すなわち，連荘していない親の関わる得点の移動は2倍になり，2連荘していた親の関わる得点の移動は3倍になり，…… といった具合です．
+              すなわち，連荘していない親の関わる得点の移動は2倍になり，
+              2連荘していた親の関わる得点の移動は3倍になり，…… といった具合です．
               なお，最初の東1局の親は “前回の局で勝って得た親ではない” という気持ちを反映して
               得点の移動を2倍しない，すなわち ${m = 0} として扱います．
             }
@@ -2852,7 +2871,14 @@ end = struct
         +p{
           さて，ようやく天九が対局できるゲームサーバをSesterl（とElm）で実装する話です．
           ここに至るまで長すぎじゃない？\quad;もはやこの章がおまけまである．
+          最終的な実装は以下のリポジトリにあってローカルで動かしたりAWSのEC2インスタンスにデプロイできるようになっているので，
+          もし（万が一）興味があったら覗いてみてください：
         }
+        +quote<
+          +p{
+            \url(`https://github.com/gfngfn/game_tianjiupai`);
+          }
+        >
         +subsection{要件}<
           +p{
             比較的小規模に作り始めて少しずつ改良していこうということで，ゲームサーバの要件は以下のようにしました：
@@ -3084,14 +3110,99 @@ end = struct
           >
         >
       >
-      +section{まだ納得していないところ}<
-        +p{\REMAINS{再帰モジュールなど}}
+      +section{まだ納得していないところ (future work)}<
         +p{
-          \listing{
+          というわけでSesterlもErlangと同様のOTP Design Principlesに自然に則って
+          オンラインゲームを創れる程度には成熟した言語になってきましたが，
+          まあライブラリが全然足りていないとかはともかく，
+          依然として言語としてもっと良くできるなと思うところはあります．
+          顕著なのは以下です：
+
+          \listing?:(true){
             * 再帰モジュール
               ** これは\ref-subsection(`subsec:recursive-modules`);で述べた通りです．
+                 \ref-figure(`fig:process-structure`);を見るとわかりますが，
+                 天九Onlineでもメッセージを相互に能動的に送り合うプロセスを実装したモジュールの組は存在しており，
+                 再帰モジュールが使えないがゆえにFFIで型つけを回避して相互依存にしている部分があります．
+                 これをFFIに逃げなくてよいように，（前述の通り理論的にかなり大変ですが）再帰モジュールを導入したいと思います．
             * GADTによる `gen_server:call` のより強固な型つけ
+              ** これは `GenServer.Behaviour` が要請する `request` 型と `response` 型の制約が緩いことについてです．
+                 \ref-subsection(`subsec:otp-as-functors`);で紹介したセルプロセスの例はたまたま同期的なメッセージの送受信が
+                 `Get`/`Got` の組み合わせという1種類しかないものでしたが，
+                 2種類以上の同期的なメッセージがある場合は型つけがいい加減になります．
+                 人工的な例ですが，以下のように同期的なメッセージが2種類ある例を考えてみます：
+
+                 \d-code(```
+                   module Callback = struct
+                     type request =
+                       | GetNumber
+                       | GetName
+
+                     type response =
+                       | GotNumber(int)
+                       | GotName(binary)
+
+                     type state = { number : int, name : binary }
+
+                     ...
+                   end
+
+                   module Core = GenServer.Make(Callback)
+
+                   val get_number(pid) = act
+                     do res <- Core.call(pid, Callback.GetNumber) in
+                     case res of
+                     | Ok(Callback.GotNumber(n)) -> return(Some(n))
+                     | Error(_)                  -> return(None)
+                     end
+                 ```);
+
+                 プロセスからの返信を受け取る側である `get_number` の実装では，返ってきたメッセージの形式が必ず
+                 `GotNumber(n)` の形であることを想定していますが，型検査としては
+                 `GotName(s)` の形である可能性も排除できていません．
+                 こうした可能性までしっかり排除できるようにするには\dfn{GADT} (generalized algebraic data type)
+                 の機構が必要で，このGADTを用いると以下の擬似コードのような要領で
+                 `request` と `response` を定義することができ，
+
+                 \d-code(```
+                   type number_token =
+                     | NumberToken /* ダミーの定義 */
+
+                   type name_token =
+                     | NameToken /* ダミーの定義 */
+
+                   type request :: (o) -> o =
+                     | GetNumber : request<number_token>
+                     | GetName   : request<name_token>
+
+                   type response :: (o) -> o =
+                     | GotNumber(int)  : response<number_token>
+                     | GotName(binary) : response<name_token>
+                 ```);%
+
+                 その結果 `handle_call` と `Core.call` の型をより強く制約することができます：
+
+                 \d-code(```
+                   val handle_call<$a, $t> :
+                     fun(request<$t>, pid<$a>, state) -> [info]reply<response<$t>, state>
+
+                   val call<$a, $t> :
+                     fun(proc, Callback.request<$t>) ->
+                       [$a]result<Callback.response<$t>, call_error>
+                 ```);%
+
+                 これによって `GetNumber` の送信に対しては必ず `GotNumber` が，
+                 `GetName` の送信に対しては必ず `GotName` が，それぞれ返信で返ってくることが
+                 保証できるようになります．
+
             * session type
+              ** 既に述べたように，純粋な計算から送受信などの発生する並行処理を
+                 モナドによって分離できたのはなかなか有益なのですが，
+                 “結局大域的にはどんなプロセスの間でどんな通信が発生しうるのか” の推論やその妥当性の検査はできないので，
+                 何らかの方法でそうした推論や検査の機構を備えたいという気持ちがあります．
+                 ガチガチに強固にsession typeの型検査をするのは却って利便性を損なうおそれもあるので，
+                 何かしらGradual Session Types \cite[`IgarashiThiemannVasconcelosWadler2017`];
+                 のような機構にすべきかもしれません．
           }%
         }
       >
