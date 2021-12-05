@@ -117,6 +117,12 @@ end = struct
 
 
   let bibliography = [
+    (`cowboy_session`, WebSite(|
+      author = {| Roman Chvanikov (et al.) |};
+      title = {`cowboy_session`};
+      url = `https://github.com/chvanikoff/cowboy_session`;
+      year = 2013;
+    |));
     (`ElmProcess`, WebSite(|
       author = {| Evan Czaplicki |};
       title = {`Process` – `core` 1.0.5};
@@ -2979,6 +2985,10 @@ end = struct
                 接続が切れると消えるという挙動をするプロセスを設け，
                 これを `tianjiupai_websocket` と名づけたモジュールで取り扱う．
                 ** これもCowboyを用いて実装しやすくするため直接Erlangで書く．
+
+              * サーバからクライアントへの能動的な通知のうち，
+                対局中の状態の更新など特に同期していることが重要な内容については，
+                クライアントからサーバへACKに相当する返信をWebSocket接続を通じて行なう．
             }%
 
             \figure?:(`fig:process-structure`){ゲームサーバのプロセス構造}<
@@ -3000,13 +3010,64 @@ end = struct
             +listing{
               * 個数や生成/終了のタイミング：\quad;
                 処理しているHTTPリクエストの分だけ存在する．
-                HTTPリクエストが送られてきたときに立ち上がり，対応するレスポンスを返して消える．
+                HTTPリクエストが送られてきたときに立ち上がり，対応するレスポンスを返して消える\footnote{
+                  \ref-figure(`fig:process-structure`);には描いていませんが，このような処理はCowboyが行ないます．
+                }．
               * 主な役割：\quad;
                 HTTPリクエストの内容に対応する動作を他のプロセスに依頼し，結果を受け取ってレスポンスを返し，終了する．
+              * 主な動作：\quad;
+                ** ユーザ作成のPOSTリクエストが来たとき：\quad;
+                   リクエストヘッダの `Cookie` が空または無効なセッション変数の場合，
+                   ユーザIDを新規に発行し，
+                   対応する `UserServer` プロセスの作成を`UserServerSup` に依頼する．
+                   そしてセッション変数を発行する別の機構\footnote{
+                     これは `cowboy_session` \cite[`cowboy_session`]; というモジュールに依存しています．
+                   }に発行を依頼し，これをレスポンスヘッダの `Set-Cookie` に格納してクライアントに覚えさせる．
+                   一方で有効なセッション変数がリクエストヘッダの `Cookie` に格納されていた場合は，
+                   既に作成済みのユーザ情報を返す．
+                ** 部屋作成のPOSTリクエストが来たとき：\quad;
+                   部屋IDを発行し，
+                   対応する `RoomServer` プロセスの作成を `RoomServerSup` に依頼する．
+                ** 部屋一覧を取得するGETリクエストが来たとき：\quad;
+                   `PlazaServer` に現在の部屋一覧を問い合わせ，結果をレスポンスにして返す．
+                ** 特定の部屋に入る/部屋から出る旨のPUTリクエストが来たとき：\quad;
+                   `RoomServer` にその旨を送り，結果をレスポンスにして返す．
+                   また，ユーザに対応するWebSocket HandlerのPIDを取得し，
+                   `PlazaServer` にunsubscribe/subscribeの指示を出す．
+                ** プレイヤーから場に牌を出すPOSTリクエストが来たとき：\quad;
+                   `RoomServer` にその旨を送り，結果をレスポンスにして返す．
             }
           >
           +subsubsection{WebSocket Handler (`tianjiupai_websocket`)}<
-            +p{\REMAINS{}}
+            +listing{
+              * 個数や生成/終了のタイミング：\quad;
+                WebSocketで接続しているユーザの分だけ存在する．
+                WebSocketの接続確立時に立ち上がり，接続が切れると消える．
+                クライアント側から接続を切った場合はその時点でプロセスが終了し，
+                サーバ側から（何らかの不都合などにより）能動的に終了してもやはり接続が切れる\footnote{
+                  やはり\ref-figure(`fig:process-structure`);には描いていませんが，
+                  このような処理はCowboyが行ないます．
+                }．
+              * 主な役割：\quad;
+                ユーザとのWebSocketでの接続を管理し，
+                クライアント側から受信した内容に応じて適切にその旨を他のプロセスに依頼し，
+                また他のプロセスから依頼された内容をクライアント側に送信する．
+              * 主な動作：\quad;
+                ** 新規の接続があったとき：\quad;
+                   `PlazaServer` にsubscribeの指示を出し，
+                   部屋一覧の更新通知を受け取れるようにする．
+                   以後，`PlazaServer` から更新通知が来たらクライアント側にその更新内容を送信し，
+                   クライアント側ではUI上に表示されている部屋一覧が更新される．
+                ** クライアント側から「対局中の状態を更新しました」というACKが送られてきたとき：\quad;
+                   `RoomServer` にその旨を通知する．
+                ** 対応する `UserServer` から
+                   \no-break-latin{`{'DOWN',` ${\ldots}`}`} を受け取ったとき：\quad;
+                   対応していたユーザがもはやユーザとして識別されなくなったので，自身を終了させて接続を切る．
+                ** ユーザの属していた部屋の `RoomServer` から
+                   \no-break-latin{`{'DOWN',` ${\ldots}`}`} を受け取ったとき：\quad;
+                   部屋が消えたので，ユーザが再度部屋一覧の更新通知を受け取れる状態にするために，
+                   `PlazaServer` にsubscriberとして自身を登録する．
+            }
           >
           +subsubsection{`Sup`}<
             +listing{
@@ -3116,6 +3177,9 @@ end = struct
             }
           >
         >
+        +subsection{主な動作のシーケンス図}<
+          +p{\REMAINS{}}
+        >
       >
       +section{まだ納得していないところ (future work)}<
         +p{
@@ -3126,6 +3190,10 @@ end = struct
           顕著なのは以下です：
 
           \listing?:(true){
+            * 分散処理
+              ** 複数ノードに分散した処理はまだ想定できていないため，サポートしたいです．
+                 現時点でもFFIを使えばいくらでもノード間のRPCなどが可能ですが，
+                 可能なら言語の水準に組み込みたいと考えています．
             * 再帰モジュール
               ** これは\ref-subsection(`subsec:recursive-modules`);で述べた通りです．
                  \ref-figure(`fig:process-structure`);を見るとわかりますが，
@@ -3214,7 +3282,34 @@ end = struct
         }
       >
       +section{まとめ}<
-        +p{\REMAINS{まとめ}}
+        +p{
+          いかがでしたでしょうか？（言いたいだけ）\quad;
+          というわけで本稿ではまず既存言語であるErlangを紹介してそれに型をつけたいという動機を述べ，
+          その目的のために実際に設計・実装したSesterlという自作言語について各種言語機能を記載し，
+          最後にSesterlが十分実用可能な水準にあるか確かめるために天九という卓上ゲームのサーバを
+          Sesterlで実装したことを紹介しました．
+          当初40ページくらいで書けるかなと思っていたところ70ページになってしまい随分長くなり書くのも疲れましたが，
+          計算機言語を実用水準まで造り込む初期段階の記録というなかなか見ない文書になったのではないかと思います．
+        }
+        +p{
+          正直なところ全部読み込んで検討してくださった読者なんていらっしゃらないんじゃないかと思いますが，
+          以下のことだけ伝わっていれば幸いです：
+
+          \listing{
+            * Erlangの並行・分散処理に特化した言語設計．
+            * OTP Design Principlesという，
+              「ハードウェア障害だけでなく人間が作り込んでしまったバグさえ含め，
+              そもそもプログラムとは変な挙動をすることがつきものである」ということを前提にした設計思想．
+            * Erlangの言語設計やOTP Design Principlesの設計思想を活かし，
+              ErlangとのFFIでの共存も志向しつつ，
+              「とはいえ静的に防げる範囲では型をつけたいよね」というSesterlの開発動機．
+            * 天九という面白いトリックテイキングゲームがあること．
+            * 天九のゲームサーバをSesterlとElmで実装したこと．
+          }%
+
+          とはいえまあ存分に自己満足ができたので筆者としては本望です．
+          もし読んで下さった方がおられましたら，最後までおつき合い頂きありがとうございました！
+        }
       >
     >
   >
