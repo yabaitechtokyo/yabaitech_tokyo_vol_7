@@ -506,13 +506,12 @@ end = struct
           * ${I_i \in \mathcal{I}_i}:
             プレイヤー${i}に関する\dfn{情報集合}${I_i}および\dfn{情報分割}${\mathcal{I}_i}．
             なおプレイヤーに関して興味が無い場合は、添字の${i}を省略することがあります。
-            情報分割${\mathcal{I}_i}は、手番がプレイヤー${i}であるような履歴の集合
-            ${\set{h \in H \mid \app{P}{h} = i}}の分割を表します。
             プレイヤー${i}に関する情報集合${I_i}は、手番がプレイヤー${i}であるような履歴の集合の
             ことで、${h,\ h' \in I_i}のとき、つまり履歴${h}と${h'}がともに同じ情報集合${I_i}に
             属するとき、プレイヤー${i}からはこれらの履歴を区別することができないことを意味します。
-            また、手番関数${P}やアクション集合${A}について、${h,\ h' \in I}ならば
-            ${\app{P}{h} = \app{P}{h'},\ \app{A}{h} = \app{A}{h'}}が成り立ちますから、
+            また、すべての履歴は必ずただ一つの情報集合に属します。
+            さらに、手番関数${P}やアクション集合${A}について、${h,\ h' \in I}ならば
+            ${\app{P}{h} = \app{P}{h'}}および${\app{A}{h} = \app{A}{h'}}が成り立つので、
             これらを${\app{P}{I},\ \app{A}{I}}と型を混同して記述することにします。
 
           * ${\sigma_i \in \Sigma_i}:
@@ -1067,7 +1066,7 @@ end = struct
                   let num_private_hands = T::num_private_hands();
                   let mut average_strategy = self.cum_strategy.clone();
 
-                  for (_, strategy) in average_strategy.iter_mut() {
+                  for strategy in average_strategy.values_mut() {
                       let mut denom = vec![0.0; num_private_hands];
                       strategy.iter().for_each(|strategy_action| {
                           add_assign_vec(&mut denom, &strategy_action);
