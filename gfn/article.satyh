@@ -2737,6 +2737,10 @@ end = struct
         >
         +subsection{トリックに於ける牌の出し方と勝敗の決め方}<
           +p{
+            \figure?:(`fig:tianjiupai-combinations-1`){牌を出すときの組み合わせ（1枚出し・2枚出し）}<
+              +external-image(`gfn/tianjiupai-combinations-1.jpg`);
+            >%
+
             トリックに於いてはまず最初のプレイヤーが打ち出しとして1–4枚の牌を出すのですが，
             このときに出せる牌の組み合わせには以下のパターンがあります：
 
@@ -2757,10 +2761,6 @@ end = struct
                 ** 組み合わせ可能な文牌2枚と武牌2枚：\quad;天天九九，地地八八，人人七七，和和五五
             }%
 
-            \figure?:(`fig:tianjiupai-combinations-1`){牌を出すときの組み合わせ（1枚出し・2枚出し）}<
-              +external-image(`gfn/tianjiupai-combinations-1.jpg`);
-            >%
-
             わかりやすさのためそれぞれの組み合わせを描いたものを\ref-figure(`fig:tianjiupai-combinations-1`);
             および\ref-figure(`fig:tianjiupai-combinations-2`);に掲げました．
             文尊と武尊は合わせて\dfn{至尊}（ジーズン）と呼ばれ，少し特殊な組み合わせです．
@@ -2768,6 +2768,10 @@ end = struct
             図中で左ほど強い組み合わせです．
           }
           +p{
+            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
+              +external-image(`gfn/tianjiupai-combinations-2.jpg`);
+            >%
+
             至尊が打ち出しの場合は少し特殊なので後で触れるとして，
             ひとまず文尊か武尊以外のパターンを最初のプレイヤーが打ち出したとします．
             2番目のプレイヤーは，この打ち出しに続いて牌を出します．打ち出しと同じ枚数の牌を出す必要があり，
@@ -2777,10 +2781,6 @@ end = struct
               * 打ち出しと同パターンでかつ真に強い牌の組み合わせを表向きで出す．
               * 打ち出しと同枚数の牌をどんな組み合わせでもよいので裏向きで出す．
             }%
-
-            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
-              +external-image(`gfn/tianjiupai-combinations-2.jpg`);
-            >%
 
             裏向きで出された牌はそのトリックで必ず負けることを表します．
             つまり，2番目のプレイヤーは，勝てる組み合わせを出す場合は表向きにして出し，
