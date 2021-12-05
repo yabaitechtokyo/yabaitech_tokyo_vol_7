@@ -1072,18 +1072,30 @@ end = struct
 
                       let mut denom = vec![0.0; num_private_hands];
                       for cum_value in cum_strategy {
-                          add_assign_vector(&mut denom, cum_value);
+                          add_assign_vec(&mut denom, cum_value);
                       }
 
                       let mut strategy = Vec::with_capacity(num_actions);
                       for cum_value in cum_strategy {
-                          strategy.push(div_vector(cum_value, &denom));
+                          strategy.push(div_vec(cum_value, &denom));
                       }
 
                       average_strategy.insert(public_history.clone(), strategy);
                   }
 
                   average_strategy
+              }
+            ```);
+
+            +p{
+              ここで、 `add_assign_vec` といった関数がいくつか出現していますが、これは配列の
+              各要素を加算代入したりする関数で、次のような定義を持ちます。
+              処理の内容は何となく分かると思いますので、いちいち全部紹介はしないことにします。
+            }
+
+            +code(```
+              fn add_assign_vec(lhs: &mut Vec<f64>, rhs: &Vec<f64>) {
+                  lhs.iter_mut().zip(rhs).for_each(|(l, r)| *l += *r);
               }
             ```);
           >
@@ -1129,12 +1141,12 @@ end = struct
 
                       // 各アクションに対する counterfactual value を計算する
                       for action in node.actions() {
-                          let pi = mul_vector(&pi, &strategy[action]);
+                          let pi = mul_vec(&pi, &strategy[action]);
                           let mut cfvalue_action =
                               self.cfr_recursive(&node.play(action), player, &pi, pmi);
                           cfvalue_action_vec.push(cfvalue_action.clone());
-                          mul_assign_vector(&mut cfvalue_action, &strategy[action]);
-                          add_assign_vector(&mut cfvalue, &cfvalue_action);
+                          mul_assign_vec(&mut cfvalue_action, &strategy[action]);
+                          add_assign_vec(&mut cfvalue, &cfvalue_action);
                       }
 
                       // リグレットの累積値と戦略の和を更新
@@ -1152,17 +1164,17 @@ end = struct
                               }
                           });
 
-                          add_assign_vector(cum_regret, &cfvalue_action_vec[action]);
-                          sub_assign_vector(cum_regret, &cfvalue);
+                          add_assign_vec(cum_regret, &cfvalue_action_vec[action]);
+                          sub_assign_vec(cum_regret, &cfvalue);
 
                           mul_assign_scalar(&mut strategy[action], self.gamma_t);
-                          mul_assign_vector(&mut strategy[action], &pi);
-                          add_assign_vector(cum_strategy, &strategy[action]);
+                          mul_assign_vec(&mut strategy[action], &pi);
+                          add_assign_vec(cum_strategy, &strategy[action]);
                       }
                   } else {
                       for action in node.actions() {
-                          let pmi = mul_vector(&pmi, &strategy[action]);
-                          add_assign_vector(
+                          let pmi = mul_vec(&pmi, &strategy[action]);
+                          add_assign_vec(
                               &mut cfvalue,
                               &self.cfr_recursive(&node.play(action), player, pi, &pmi),
                           );
@@ -1204,30 +1216,17 @@ end = struct
 
                   let mut denom = vec![0.0; num_private_hands];
                   for regret_action in regrets {
-                      add_assign_vector(&mut denom, &nonneg_vector(regret_action));
+                      add_assign_vec(&mut denom, &nonneg_vec(regret_action));
                   }
 
                   let mut strategy = Vec::with_capacity(num_actions);
                   for regret_action in regrets {
-                      let mut norm_regret_action = nonneg_vector(regret_action);
-                      div_assign_vector(&mut norm_regret_action, &denom, 1.0 / num_actions as f64);
+                      let mut norm_regret_action = nonneg_vec(regret_action);
+                      div_assign_vec(&mut norm_regret_action, &denom, 1.0 / num_actions as f64);
                       strategy.push(norm_regret_action);
                   }
 
                   strategy
-              }
-            ```);
-
-            +p{
-              ここで、 `add_assign_vector` といった関数がいくつか出現していますが、これは配列の
-              各要素を加算代入したりする関数で、次のような定義を持ちます。
-              処理の内容は何となく分かると思いますので、いちいち全部紹介はしないことにします。
-            }
-
-            +code(```
-              #[inline]
-              fn add_assign_vector(lhs: &mut Vec<f64>, rhs: &Vec<f64>) {
-                  lhs.iter_mut().zip(rhs).for_each(|(l, r)| *l += *r);
               }
             ```);
 
@@ -1299,14 +1298,14 @@ end = struct
                   if node.current_player() == player {
                       node.actions()
                           .map(|action| {
-                              let pi = mul_vector(&current_strategy[action], &pi);
+                              let pi = mul_vec(&current_strategy[action], &pi);
                               compute_ev_rec(game, &node.play(action), player, &pi, pmi, strategy)
                           })
                           .sum()
                   } else {
                       node.actions()
                           .map(|action| {
-                              let pmi = mul_vector(&current_strategy[action], &pmi);
+                              let pmi = mul_vec(&current_strategy[action], &pmi);
                               compute_ev_rec(game, &node.play(action), player, pi, &pmi, strategy)
                           })
                           .sum()
@@ -1352,15 +1351,15 @@ end = struct
                           .map(|action| {
                               best_cfvalues_rec(game, &node.play(action), player, pmi, strategy)
                           })
-                          .reduce(|v, w| max_vector(&v, &w))
+                          .reduce(|v, w| max_vec(&v, &w))
                   } else {
                       let current_strategy = &strategy[node.public_history()];
                       node.actions()
                           .map(|action| {
-                              let pmi = mul_vector(&pmi, &current_strategy[action]);
+                              let pmi = mul_vec(&pmi, &current_strategy[action]);
                               best_cfvalues_rec(game, &node.play(action), player, &pmi, strategy)
                           })
-                          .reduce(|v, w| add_vector(&v, &w))
+                          .reduce(|v, w| add_vec(&v, &w))
                   }
                   .unwrap()
               }
@@ -1414,14 +1413,14 @@ end = struct
             見えないようにカードをデッキから１枚ずつ引き、残った１枚については伏せたままにしておきます。
             続いて、各プレイヤーは１点の\dfn{アンティ}（参加費）を場に供託します。
             どちらかのプレイヤーが\dfn{ベット}することでもう１点を追加で供託することもできますが、
-            この手順については後ほど詳しく説明します。
+            この手順については後ほど説明します。
             供託する点数について両者の合意が取れた場合、各プレイヤーは自分の持つカードを公開し、
             より強いカードを持っていた方がそれまでに供託されていた点数を総取りします
             （\dfn{ショーダウン}）。
           }
 
           +p{
-            アンティを供託した後は、両プレイヤーは先手と後手に分かれて、次のような手順を経て
+            アンティを供託した後は、プレイヤーは先手と後手に分かれて、次のような手順を経て
             供託する点数についての合意を取ろうとします：
           }
 
@@ -1500,8 +1499,161 @@ end = struct
 
         +subsection{ゲーム定義の実装} <
           +p{
-
+            Kuhn poker のルールについての説明が済んだので、続いてゲーム定義の実装に移って
+            いきましょう。
+            まず、Kuhn poker には特に設定を変更できる部分がありませんので、構造体 `KuhnGame` には
+            空の定義を持たせます。
+            `KuhnGame` のノードを表す型である `KuhnNode` は、パブリックな履歴を保持すれば良いので、
+            唯一のフィールド `public_history` を持ちます。
+            また、ノードはクローンできると便利なので、 `KuhnNode` は `Clone` トレイトを
+            継承しておきます。
           }
+
+          +code(```
+            pub struct KuhnGame {}
+
+            #[derive(Clone)]
+            pub struct KuhnNode {
+                public_history: PublicHistory,
+            }
+          ```);
+
+          +p{
+            それでは `KuhnGame` の実装に移っていきますが、`Node, root(), num_private_hands()` の
+            実装は明らかで、特に考える必要はないでしょう。
+          }
+
+          +code(```
+            impl Game for KuhnGame {
+                type Node = KuhnNode;
+
+                fn root() -> KuhnNode {
+                    KuhnNode {
+                        public_history: Vec::new(),
+                    }
+                }
+
+                fn num_private_hands() -> usize {
+                    3
+                }
+
+                fn evaluate(&self, node: &KuhnNode, player: usize, pmi: &Vec<f64>) -> Vec<f64> {
+                    ...
+                }
+            }
+          ```);
+
+          +p{
+            ここで、地味に簡単ではないのが `evaluate()` の実装です。
+            `evaluate()` がどのようなメソッドであったかを思い出すと、「終端履歴 `node` において、
+            偶然手番の寄与を含まない counterfactual-到達確率が `pmi` のもとでの、 `player` の
+            counterfactual value を計算する」というものでした。
+            さらに、終端履歴における counterfactual value は counterfactual-到達確率と利得の積で
+            あったことも思い出すと、実装の方針が少しずつ見えてくるのではないでしょうか。
+          }
+
+          +p{
+            一つ注意したいのは、返り値となる counterfactual value の計算においては偶然手番による
+            寄与を含むcounterfactual-到達確率の値を用いるべきですが、引数 `pmi` には偶然手番による
+            寄与が含まれていないという点です。
+            つまり、偶然手番によってどのような確率でどのようなハンドが各プレイヤーに与えられるのかは、
+            この `evaluate()` メソッド内で定義を与えなければならないということです。
+            `evaluate()` メソッドを `GameNode` ではなく `Game` トレイトのメソッドとしている理由は
+            このためでもありますが、今回の Kuhn poker の例では両プレイヤーへのカードの配り方は
+            全部で６通りあり、それらが等確率に発生するということをこの `evaluate()` メソッドに
+            組み込む必要があります。
+          }
+
+          +p{
+            以上の考察を経ると、利得を計算する関数 `payoff()` を用いて、 `evaluate()` が次のように
+            書き下せることが分かるでしょう：
+          }
+
+          +code(```
+            fn evaluate(&self, node: &KuhnNode, player: usize, pmi: &Vec<f64>) -> Vec<f64> {
+                let mut cfvalue = vec![0.0; Self::num_private_hands()];
+
+                for my_card in 0..Self::num_private_hands() {
+                    for opp_card in 0..Self::num_private_hands() {
+                        if my_card == opp_card {
+                            continue;
+                        }
+                        cfvalue[my_card] +=
+                            Self::payoff(node, player, my_card, opp_card) * pmi[opp_card] / 6.0;
+                    }
+                }
+
+                cfvalue
+            }
+          ```);
+
+          +p{
+            さらに、以下の実装を加えて構造体 `KuhnGame` の定義を完成させます：
+          }
+
+          +code(```
+            const CHECK_FOLD: usize = 0;
+            const BET_CALL: usize = 1;
+
+            impl KuhnGame {
+                /// コンストラクタ
+                pub fn new() -> Self {
+                    Self {}
+                }
+
+                fn payoff(
+                    node: &KuhnNode,
+                    player: usize,
+                    my_card: usize,
+                    opp_card: usize,
+                ) -> f64 {
+                    match (node.public_history.as_slice(), node.public_history.last()) {
+                        ([CHECK_FOLD, CHECK_FOLD], _) if my_card > opp_card => 1.0,
+                        ([CHECK_FOLD, CHECK_FOLD], _) => -1.0,
+                        (_, Some(&CHECK_FOLD)) if node.current_player() == player => 1.0,
+                        (_, Some(&CHECK_FOLD)) => -1.0,
+                        _ if my_card > opp_card => 2.0,
+                        _ => -2.0,
+                    }
+                }
+            }
+          ```);
+
+          +p{
+            最後に、ゲーム木のノードを表す型である `KuhnNode` の実装を以下のように与えます。
+            こちらも特に難しい点は無く、素直に定義を書き下しているだけであることが分かると思います。
+          }
+
+          +code(```
+            impl GameNode for KuhnNode {
+                fn public_history(&self) -> &PublicHistory {
+                    &self.public_history
+                }
+
+                fn is_terminal(&self) -> bool {
+                    match self.public_history.as_slice() {
+                        [CHECK_FOLD, BET_CALL] => false,
+                        [_, _] => true,
+                        [_, _, _] => true,
+                        _ => false,
+                    }
+                }
+
+                fn current_player(&self) -> usize {
+                    self.public_history.len() % 2
+                }
+
+                fn num_actions(&self) -> usize {
+                    2
+                }
+
+                fn play(&self, action: Action) -> Self {
+                    let mut ret = self.clone();
+                    ret.public_history.push(action);
+                    ret
+                }
+            }
+          ```);
         >
 
         +subsection{プログラムの実行} <
