@@ -39,13 +39,8 @@ document (|
   front = Option.none;
   colophon = colophon;
 |) '<
-  #Gfn.article;
-  #Irnbru.article;
   #MasWag.article;
-  #Zeptometer.article;
   #Binary.article;
-  #NullpoHead.article;
-  #Wasabiz.article;
-  #Censored.article;
-  #Mh.article;
-  >
+  #Zeptometer.article;
+  #Gfn.article;
+>
