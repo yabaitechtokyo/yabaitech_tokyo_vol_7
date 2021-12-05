@@ -3007,7 +3007,7 @@ end = struct
             簡単のため，モジュール ${X} に基づいて動作するプロセスを単に ${X} とも呼ぶことにします．
           }
           +subsubsection{HTTP Handler (`tianjiupai_rest`)}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 処理しているHTTPリクエストの分だけ存在する．
                 HTTPリクエストが送られてきたときに立ち上がり，対応するレスポンスを返して消える\footnote{
@@ -3039,7 +3039,7 @@ end = struct
             }
           >
           +subsubsection{WebSocket Handler (`tianjiupai_websocket`)}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 WebSocketで接続しているユーザの分だけ存在する．
                 WebSocketの接続確立時に立ち上がり，接続が切れると消える．
@@ -3070,7 +3070,7 @@ end = struct
             }
           >
           +subsubsection{`Sup`}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 全体で1つ．常に存在する．
               * 主な役割：\quad;
@@ -3080,7 +3080,7 @@ end = struct
             }
           >
           +subsubsection{`UserServerSup`}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 全体で1つ．常に存在する．
               * 主な役割：\quad;
@@ -3090,7 +3090,7 @@ end = struct
             }
           >
           +subsubsection{`UserServer`}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 各時点で，ユーザIDで識別しているユーザ1人に対して1つ存在する．
                 ユーザが作成されたときに生成され，このプロセスが終了するとユーザが消えたものとする．
@@ -3104,7 +3104,7 @@ end = struct
             }
           >
           +subsubsection{`RoomServerSup`}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 全体で1つ．常に存在する．
               * 主な役割：\quad;
@@ -3114,7 +3114,7 @@ end = struct
             }
           >
           +subsubsection{`RoomServer`}<
-            +listing{
+            +listing?:(true){
               * 個数や生成/終了のタイミング：\quad;
                 各時点で，存在する部屋1つに対して1つ存在する．
                 部屋が作成されたときに生成され，このプロセスが終了すると部屋が消えたものとする．
@@ -3122,7 +3122,7 @@ end = struct
                 部屋1つに対応して存在し，
                 どんなプレイヤーがメンバーで，対局開始前なのか，
                 或いは対局が開始しておりどんな牌が場に出ていて各プレイヤーはどんな手牌を持っているのか，
-                などといった部屋の状態を保持する．
+                などといった状態を保持する．
                 各プレイヤーから送られてきた牌を出すメッセージを処理し，
                 適切に対局状態の更新を行ない，その結果を各プレイヤーに通知する．
               * 主な動作：\quad;
@@ -3144,7 +3144,7 @@ end = struct
             }
           >
           +subsubsection{`PlazaServer`}<
-            +listing{
+            +listing?:(true){
               * 個数：\quad;
                 全体で1つ．
               * 主な役割：\quad;
@@ -3178,7 +3178,20 @@ end = struct
           >
         >
         +subsection{主な動作のシーケンス図}<
-          +p{\REMAINS{}}
+          +p{
+            \figure?:(`fig:tianjiupai-sequence-diagram-submission`){プレイヤーが牌を出す際のプロセス間のやり取り}<
+              +external-image(`gfn/tianjiupai-sequence-diagram-submission.jpg`);
+            >
+            プレイヤーが牌を出すときに各プロセス間で起こる送受信の様子は
+            \ref-figure(`fig:tianjiupai-sequence-diagram-submission`);のシーケンス図に示す通りです．
+            サーバが各クライアントから状態が同期できたことを表す確認応答 (ACK) を受け取るため，
+            1往復半または2往復の通信が各クライアントとの間で発生します．
+            また，牌を出したプレイヤーだけはWebSocketではなくHTTP通信のレスポンスで
+            状態の更新を受け取るようになっています\footnote{
+              現状でも問題ないとは思いますが，HTTPのレスポンスは異常系の場合にしか見ず，
+              正常系では全員に対してWebSocketで新しい状態を通知する方式に切り替えた方が自然かもしれません．
+            }．
+          }
         >
       >
       +section{まだ納得していないところ (future work)}<
@@ -3288,7 +3301,7 @@ end = struct
           その目的のために実際に設計・実装したSesterlという自作言語について各種言語機能を記載し，
           最後にSesterlが十分実用可能な水準にあるか確かめるために天九という卓上ゲームのサーバを
           Sesterlで実装したことを紹介しました．
-          当初40ページくらいで書けるかなと思っていたところ70ページになってしまい随分長くなり書くのも疲れましたが，
+          当初40ページくらいで書けるかなと思っていたところ70ページ強になってしまい随分長くなり書くのも疲れましたが，
           計算機言語を実用水準まで造り込む初期段階の記録というなかなか見ない文書になったのではないかと思います．
         }
         +p{
