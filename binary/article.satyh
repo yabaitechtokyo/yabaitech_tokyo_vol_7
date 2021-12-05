@@ -1064,23 +1064,18 @@ end = struct
             +code(```
               /// フィールド `cum_strategy` を参照して平均戦略を返す
               fn compute_average_strategy(&self) -> HashMap<PublicHistory, Vec<Vec<f64>>> {
-                  let mut average_strategy = HashMap::new();
                   let num_private_hands = T::num_private_hands();
+                  let mut average_strategy = self.cum_strategy.clone();
 
-                  for (public_history, cum_strategy) in &self.cum_strategy {
-                      let num_actions = cum_strategy.len();
-
+                  for (_, strategy) in average_strategy.iter_mut() {
                       let mut denom = vec![0.0; num_private_hands];
-                      for cum_value in cum_strategy {
-                          add_assign_vec(&mut denom, cum_value);
-                      }
+                      strategy.iter().for_each(|strategy_action| {
+                          add_assign_vec(&mut denom, &strategy_action);
+                      });
 
-                      let mut strategy = Vec::with_capacity(num_actions);
-                      for cum_value in cum_strategy {
-                          strategy.push(div_vec(cum_value, &denom));
-                      }
-
-                      average_strategy.insert(public_history.clone(), strategy);
+                      strategy.iter_mut().for_each(|strategy_action| {
+                          div_assign_vec(strategy_action, &denom, 0.0);
+                      });
                   }
 
                   average_strategy
@@ -1213,18 +1208,17 @@ end = struct
               fn regret_matching(regrets: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
                   let num_actions = regrets.len();
                   let num_private_hands = T::num_private_hands();
+                  let mut strategy = regrets.clone();
 
                   let mut denom = vec![0.0; num_private_hands];
-                  for regret_action in regrets {
-                      add_assign_vec(&mut denom, &nonneg_vec(regret_action));
-                  }
+                  strategy.iter_mut().for_each(|strategy_action| {
+                      nonneg_assign_vec(strategy_action);
+                      add_assign_vec(&mut denom, strategy_action);
+                  });
 
-                  let mut strategy = Vec::with_capacity(num_actions);
-                  for regret_action in regrets {
-                      let mut norm_regret_action = nonneg_vec(regret_action);
-                      div_assign_vec(&mut norm_regret_action, &denom, 1.0 / num_actions as f64);
-                      strategy.push(norm_regret_action);
-                  }
+                  strategy.iter_mut().for_each(|strategy_action| {
+                      div_assign_vec(strategy_action, &denom, 1.0 / num_actions as f64);
+                  });
 
                   strategy
               }
