@@ -534,19 +534,28 @@ end = struct
               局所的な変数の束縛は少し独特で，以下のように書きます：
 
               \d-code(```
-                distance({X1, Y1}, {X2, Y2}) ->
+                distance(X1, Y1, X2, Y2) ->
                     XDiff = X1 - X2,
                     YDiff = Y1 - Y2,
                     math:sqrt(XDiff * XDiff + YDiff * YDiff).
               ```);%
 
               変数だけでなく一般のパターンも左辺に書くことができます
-              （ただし，パターンについては少し注意すべきことがあるので後述のパターンマッチングの節を参照してください）：
+              （\no-break-latin{`{`${p_1}`,` ${p_2}`,` ${\ldots}`,` ${p_n}`}`} は組にマッチするパターンです）：
 
               \d-code(```
                 distance(Pos1, Pos2) ->
                     {X1, Y1} = Pos1,
                     {X2, Y2} = Pos2,
+                    XDiff = X1 - X2,
+                    YDiff = Y1 - Y2,
+                    math:sqrt(XDiff * XDiff + YDiff * YDiff).
+              ```);%
+
+              引数を直接パターンにしてもかまいません：
+
+              \d-code(```
+                distance({X1, Y1}, {X2, Y2}) ->
                     XDiff = X1 - X2,
                     YDiff = Y1 - Y2,
                     math:sqrt(XDiff * XDiff + YDiff * YDiff).
@@ -823,7 +832,7 @@ end = struct
 
               main() ->
                   PidA = self(),
-                  PidB = spawn(fun() -> sub(PidA) end),
+                  PidB = spawn(fun() -> sub() end),
                   PidB ! {PidA, 42},
                   ResultA = moduleA:calculationA(57),
                   receive
@@ -834,7 +843,7 @@ end = struct
             或るプロセス A で `concurrency_example:main()` が呼び出されて処理が開始する想定の実装です．
             このプログラムでは，まず `PidA` を呼び出したプロセスのPIDに束縛し，
             続いて新しいプロセス B を生成して `PidB` をその新しいプロセスのPIDに束縛します．
-            起動されたプロセス B では `sub/1` が A のPIDに適用され，`receive` 式を評価するところで待機します．
+            起動されたプロセス B では `sub()` が評価され，`receive` 式を評価するところで待機します．
             プロセス A は B に向かって返信用の自身のPIDと `42` という整数の組を送ります．
             B はそれを受け取って `From` を A のPIDに，`N` を `42` に束縛し，
             `moduleB:calculationB(42)` を評価します．
@@ -2110,7 +2119,7 @@ end = struct
 
                 val main() = act
                   do pid_a <- self() in
-                  do pid_b <- spawn(fun() -> act sub(pid_a) end) in
+                  do pid_b <- spawn(fun() -> act sub() end) in
                   do {} <- send(pid_b, {pid_a, 42}) in
                   let result_a = ModuleA.calculation_a(57) in
                   receive
@@ -2133,7 +2142,8 @@ end = struct
           +p{
             ちなみにこの節で述べたような並行処理に対するモナディックな型つけは
             しばしば使われるテクニックで，
-            似た直観に基づく型システムが例えば \cite[`Fowler2019`]; や \cite[`OrchardYoshida2016`]; にみられるほか，
+            似た直観に基づく型システムが例えば ${\lambda_{\mathrm{act}}} \cite[`Fowler2019`]; や
+            \dfn{FPCF}と\dfn{session calculus} \cite[`OrchardYoshida2016`]; にみられるほか，
             Elmの `Process` モジュール \cite[`ElmProcess`]; もよく似た型つけを採用しています．
           }
         >
