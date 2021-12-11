@@ -25,11 +25,11 @@ YABAITECH.TOKYO vol.7
 
 let colophon = ColophonData.make (|
   title = `YABAITECH.TOKYO vol.7`;
-  history = [];
+  history = [`2021年12月31日 コミックマーケット99版 発行`];
   publisher = (Option.some `yabaitech.tokyo`);
-  website = (Option.some `http://yabaitech.tokyo`);
+  website = (Option.some `https://yabaitech.tokyo`);
   email = (Option.some `admin@yabaitech.tokyo`);
-  printer = Option.none;
+  printer = (Option.some `株式会社ポプルス`);
 |)
 in
 document (|
