@@ -223,10 +223,10 @@ let article = '<
 
     +code(`
       // koumakan.ptr は nullptr なので 0が出力される
-      koumakan.print_ptr(); // -> 0
+      koumakan.print_ptr();     // -> 0
       hakugyokurou.print_ptr(); // -> 7f8aa9405a90
       // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
-      yakumo.print_ptr();  // -> 7f8aa9405a80
+      yakumo.print_ptr();       // -> 7f8aa9405a80
     }
     `);
     +subsection ?:(`解説-2`) {解説} <
@@ -251,7 +251,7 @@ let article = '<
 
     +code(`
     void copy_and_move2() {
-      Bus koumakan = Bus(); // 内部で charが3回newされる
+      Bus koumakan = Bus(); // 3byteのメモリが確保される
       koumakan.print_ptr();
 
       // コピーコンストラクタ。static_castは不要
@@ -268,7 +268,7 @@ let article = '<
     `);
     +subsection ?:(`解説-3`) {解説} <
     +p {
-      前述の例では \code(`static_cast<Bus&&>(koumakan)`); と書くことで \code(`koumakan`); の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの \code(`std::move`); です。結局やっていることは \code(`static_cast`); と同じですが、 \code(`std::move`); を使うことで前述の例を以下の様に短かく書くことができます。
+      前述の例では \code(`static_cast<Bus&&>(koumakan)`); と書くことで \code(`koumakan`); の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの \code(`std::move`); です。結局やっていることは \code(`static_cast`); と同じですが、 \code(`std::move`); を使うことで前述の例を以下の様に短く書くことができます。
     }
     >
     >
