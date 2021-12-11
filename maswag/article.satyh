@@ -7,6 +7,7 @@
 @require: ruby/ruby
 
 @import: local
+@import: ../lib/code
 % @import: bib
 
 module MasWag : sig
@@ -14,6 +15,7 @@ module MasWag : sig
   val article : block-text
 
 end = struct
+  open Code2
 
 let article = '<
     +chapter ?:(`maswag-article`)
@@ -52,13 +54,13 @@ let article = '<
       キラキラ　C++
     }
     +p {
-      輝く rvalue
+      輝く　rvalue
     }
     +p {
       参照　\ruby[`右辺値`]{|rvalue|}　もなんとかして入ろう
     }
     +p {
-      関数 変数　トップ目指して GO GO!!\footnote{
+      関数　変数　トップ目指して GO GO!!\footnote{
       この記事はC++11についての記事です。Go言語は関係ない
     }
     }>
@@ -75,7 +77,8 @@ let article = '<
       // C++11より前は、右辺にある値がrvalueで左辺にある値がlvalueだった (非常に明快で良い)
       int alice_margatroid = return_int();
       // 当たり前だが、lvalueの参照を取ることができる
-      int& pc98_alice = alice_margatroid; // 旧作のアリスはWin版のアリス・マーガトロイドと同一人物(らしい)
+      // 旧作のアリスはWin版のアリス・マーガトロイドと同一人物(らしい)
+      int& pc98_alice = alice_margatroid;
     }
     `);
     +p {
@@ -92,7 +95,7 @@ let article = '<
       チルノ「ちょっ…違っ…rvalueじゃないもん！」
     }
     +p {
-      (バーカ！バーカ！　バーカ！バーカ！バーカ！バーカ！)
+      (バーカ！バーカ！バーカ！バーカ！バーカ！バーカ！)
     }
     +p {
       チルノ「左辺にある方がlvalueなのよぉ！」
@@ -101,7 +104,8 @@ let article = '<
     +code(`
     void rvalue_reference(void) {
       // C++11以降では&&でrvalueの参照も取ることができる様になった
-      // chirnoは左辺にあるけどrvalueの参照なのでrvalue (正確にはeXpiring value、xvalue)
+      // chirnoは左辺にあるけどrvalueの参照なのでrvalue
+      //   (正確にはeXpiring value、xvalue)
       // rvalue 参照はrvalueだけどlife timeが延長されて、式の外に出ても使うことができる。
       int&& chirno = return_int();
     `);
@@ -123,7 +127,7 @@ let article = '<
       // 普通のrvalue (正確にはprvalue) は式が終わるとlife timeが終わる
       return_int();
       // ここでchirnoのlife timeが消える
-      // 一方 return chirno; の様にすれば rvalue 参照 を返して引き続きlife timeを伸ばすこともできる
+      // 一方 return chirno; の様にすれば rvalue 参照を返して引き続きlife timeを伸ばすこともできる
     }
     `);
     +subsection ?:(`解説-1`) {解説} <
@@ -180,7 +184,7 @@ let article = '<
 
     +code(`
     void copy_and_move() {
-      Bus koumakan = Bus(); // 内部で charが3回newされる
+      Bus koumakan = Bus(); // 内部で3byte分のメモリがnewされる
       koumakan.print_ptr(); // -> 7f8aa9405a80
     `);
     +quote<
@@ -188,23 +192,23 @@ let article = '<
       白玉楼にコピーして半人(はんじん)だけ乗りました
     }>
 
-    +code(`
-    Bus hakugyokurou = Bus(static_cast<const Bus&>(koumakan)); // コピーコンストラクタ。static_castは不要
-    koumakan.print_ptr(); // -> 7f8aa9405a80
+    +code?:(2)(`
+    // コピーコンストラクタ。static_castは不要
+    Bus hakugyokurou = Bus(static_cast<const Bus&>(koumakan));
+    koumakan.print_ptr();     // -> 7f8aa9405a80
     hakugyokurou.print_ptr(); // -> 7f8aa9405a90
     `);
     +p {
-      \footnote{
-      ここで =koumakan= と =hakugyokurou= のアドレスが異なることに注意してください
-    }
+      ここで \code(`koumakan`); と \code(`hakugyokurou`); のアドレスが異なることに注意してください。
     }
     +quote<
     +p {
       八雲さん家にムーブして 結局紅魔の乗客何人だ？
     }>
 
-    +code(`
-    Bus yakumo = Bus(static_cast<Bus&&>(koumakan)); // ムーブコンストラクタ。これ以降でkoumakanを使ってはいけない
+    +code?:(2)(`
+    // ムーブコンストラクタ。これ以降でkoumakanを使ってはいけない
+    Bus yakumo = Bus(static_cast<Bus&&>(koumakan));
     `);
     +quote<
     +p {
@@ -250,10 +254,13 @@ let article = '<
       Bus koumakan = Bus(); // 内部で charが3回newされる
       koumakan.print_ptr();
 
-      Bus hakugyokurou = Bus(koumakan); // コピーコンストラクタ。static_castは不要
+      // コピーコンストラクタ。static_castは不要
+      Bus hakugyokurou = Bus(koumakan);
       koumakan.print_ptr();
       hakugyokurou.print_ptr();
-      Bus yakumo = Bus(std::move(koumakan)); // ムーブコンストラクタ。これ以降でkoumakanを使ってはいけない
+
+      // ムーブコンストラクタ。これ以降でkoumakanを使ってはいけない
+      Bus yakumo = Bus(std::move(koumakan));
       koumakan.print_ptr(); // koumakan.ptr は nullptr なので 0が出力される
       hakugyokurou.print_ptr();
       yakumo.print_ptr(); // 元々 koumakan.ptr だったアドレスは yakumo.ptr に移った
@@ -261,7 +268,7 @@ let article = '<
     `);
     +subsection ?:(`解説-3`) {解説} <
     +p {
-      前述の例では \code(`static=cast<Bus&&>(koumakan)`); と書くことで \code(`koumakan`); の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの \code(`std::move`); です。結局やっていることは \code(`static_cast`); と同じですが、 \code(`std::move`); を使うことで前述の例を以下の様に短かく書くことができます。
+      前述の例では \code(`static_cast<Bus&&>(koumakan)`); と書くことで \code(`koumakan`); の rvalue 参照を得ていましたが、これを毎回書くのはなかなか長いです。そこで出てくるのが標準ライブラリの \code(`std::move`); です。結局やっていることは \code(`static_cast`); と同じですが、 \code(`std::move`); を使うことで前述の例を以下の様に短かく書くことができます。
     }
     >
     >
@@ -281,13 +288,20 @@ let article = '<
     }>
 
     +code(`
+    // T 自体は lvalue 参照か 参照ではない型になる。今回の例では T は int& か intのどちらかになる
     template<typename T>
-    void print_if_ref(T&&) { // T 自体は lvalue 参照か 参照ではない型になる。今回の例では T は int& か intのどちらかになる
+    void print_if_ref(T&&) {
       // この static_assert の中身はC++17が必要
-      static_assert(std::disjunction<std::negation<std::is_reference<T>>, std::is_lvalue_reference<T>>::value, "T is not an rvalue reference."); // T自体は参照ならばつねに lvalue の参照になる
-      if (std::is_lvalue_reference<T&&>::value) { // T が int& の場合、 T&& は int& になる (T&&& -> T& と私は覚えた)
+      // T自体は参照ならばつねに lvalue の参照になる
+      static_assert(std::disjunction<std::negation<std::is_reference<T>>,
+                                     std::is_lvalue_reference<T>>::value,
+                    "T is not an rvalue reference.");
+
+      if (std::is_lvalue_reference<T&&>::value) {
+        // T が int& の場合、 T&& は int& になる (T&&& -> T& と私は覚えた)
         std::cout << "lvalue ref" << std::endl;
-      } else if(std::is_rvalue_reference<T&&>::value) { // T が int の場合、 T&& は int&& になる
+      } else if(std::is_rvalue_reference<T&&>::value) {
+        // T が int の場合、 T&& は int&& になる
         std::cout << "rvalue ref" << std::endl;
       }
     }
@@ -353,7 +367,8 @@ let article = '<
       move_pass(chirno); // -> rvalue ref
       move_pass(9); // -> rvalue ref
 
-      // std::forward で渡す。受け取った変数が lvalue の参照か rvalue の参照かに応じて適切に関数に渡すことができる。
+      // std::forward で渡す。
+      // 受け取った変数が lvalue の参照か rvalue の参照かに応じて適切に関数に渡すことができる。
       perfect_forwarding_pass(chirno); // -> lvalue ref
       perfect_forwarding_pass(9); // -> rvalue ref
     }
@@ -363,7 +378,7 @@ let article = '<
       さて、ついにタイトルにもある perfect forwarding (完全転送) が出てきました。
     }
     +p {
-      Universal参照で受け取った、 lvalue か rvalue のどちらの参照かわからない変数を別の関数に渡す場合はどうしたら良いでしょうか。そのまま渡せば良い様な気もしますが、仮引数は lvalue として扱われてしまうため、 rvalue の参照を受け取ったときも lvalue として渡してしまいますし、じゃあ std::move で渡せば良いかというと、今度は rvalue の参照にキャストしてしまうので lvalue の参照を受け取った場合でも rvalue の参照として渡してしまいます。
+      Universal参照で受け取った、 lvalue か rvalue のどちらの参照かわからない変数を別の関数に渡す場合はどうしたら良いでしょうか。そのまま渡せば良い様な気もしますが、仮引数は lvalue として扱われてしまうため、 rvalue の参照を受け取ったときも lvalue として渡してしまいますし、じゃあ \code(`std::move`); で渡せば良いかというと、今度は rvalue の参照にキャストしてしまうので lvalue の参照を受け取った場合でも rvalue の参照として渡してしまいます。
     }
     +p {
       ここで出てくるのが \code(`std::forward`); です。 \code(`std::forward`); は \code(`T`); の値を見て上手い具合にキャストをしてくれるので、受け取った変数が lvalue か rvalue のどちらの参照なのかに応じて、適切に渡すことができます。なお、 \code(`std::forward`); の中身はテンプレートの特殊化で頑張って実装している様です。

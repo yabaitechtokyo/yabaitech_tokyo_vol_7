@@ -3,11 +3,12 @@
 @require: color
 @require: gr
 @require: vdecoset
+@require: base/option-ext
 
 module Code2 : sig
 
-  val +code : [string] block-cmd
-  val +console : [string] block-cmd
+  val +code : [int?; string] block-cmd
+  val +console : [int?; string] block-cmd
   val \code : [string] inline-cmd
   val \console : [string] inline-cmd
   val \d-code : [string] inline-cmd
@@ -39,7 +40,7 @@ end = struct
     |> set-font HanIdeographic (`fonts-noto-sans-cjk-jp:NotoSansMonoCJKjp-Regular`, 1., 0.)
     |> set-hyphen-penalty 100000
 
-  let scheme decoset txtcolor ctx code =
+  let scheme decoset txtcolor ctx code indent =
     let pads = (15pt, 10pt, 10pt, 10pt) in
     block-frame-breakable ctx pads decoset (fun ctx -> (
       let fontsize = (get-font-size ctx) *' 0.8 in
@@ -67,7 +68,7 @@ end = struct
             | None    -> inline-fil
           in
           let ib =
-            inline-skip (charwid *' (float i))
+            inline-skip (charwid *' (float (i + indent)))
               ++ read-inline ctx-code (embed-string s)
               ++ ib-last
           in
@@ -78,8 +79,9 @@ end = struct
     ))
 
 
-  let-block ctx +code code =
-    scheme decoset-code (Gray(0.25)) ctx code
+  let-block ctx +code ?:indent-opt code =
+    let indent = Option.unwrap-or 0 indent-opt in
+    scheme decoset-code (Gray(0.25)) ctx code indent
 
 
   let-inline ctx \d-code code =
@@ -87,8 +89,9 @@ end = struct
       (read-block ctx '<+code(code);>)
 
 
-  let-block ctx +console code =
-    scheme decoset-console Color.white ctx code
+  let-block ctx +console ?:indent-opt code =
+    let indent = Option.unwrap-or 0 indent-opt in
+    scheme decoset-console Color.white ctx code indent
 
 
   let-inline ctx \console code =
