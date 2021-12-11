@@ -5,11 +5,15 @@
 
 @require: class-yabaitech/yabaitech
 
+@import: ../lib/code
+
 module Gfn : sig
 
   val article : block-text
 
 end = struct
+
+  open Code2
 
   let-inline ctx \no-break-latin it =
     let pads = (0pt, 0pt, 0pt, 0pt) in
