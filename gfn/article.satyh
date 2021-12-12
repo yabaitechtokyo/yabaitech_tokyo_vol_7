@@ -349,6 +349,18 @@ end = struct
       pages = (529, 607);
       year = 2014;
     |));
+    (`Sesterl`, WebSite(|
+      author = {| Takashi Suwa (et al.) |};
+      title = {Sesterl};
+      url = `https://github.com/gfngfn/Sesterl`;
+      year = 2020;
+    |));
+    (`game-tianjiupai`, WebSite(|
+      author = {| Takashi Suwa |};
+      title = {A Tian Jiu Pai Game Server};
+      url = `https://github.com/gfngfn/game_tianjiupai`;
+      year = 2021;
+    |));
     (`SvenssonFredlundEarle2010`, InProceedings(|
       title = {A unified semantics for future Erlang};
       author = {| Hans Svensson | Lars-Åke Fredlund | Clara Benac Earle |};
@@ -370,14 +382,15 @@ end = struct
   let article = '<
     +chapter ?:(`gfn-article`)(|
         bibliography  = bibliography;
-        title         = {自作言語でオンライン対局ゲームを実装した話};
+        title         = {自作言語Sesterlでオンライン対局ゲームを実装した話};
         author        = {gfn};
         title-for-toc = None;
         subtitle      = None;
     |)<
       +section{はじめに}<
         +p{
-          \dfn{Sesterl}（セスタール）という自作言語で\dfn{天九Online}というオンラインゲームを実装した話を報告したいと思います．
+          \dfn{Sesterl}（セスタール）\cite[`Sesterl`];という自作言語で
+          \dfn{天九Online} \cite[`game-tianjiupai`];というオンラインゲームを実装した話を報告したいと思います．
           以下のような前提知識を想定します：
 
           \listing{
@@ -2781,10 +2794,6 @@ end = struct
             図中で左ほど強い組み合わせです．
           }
           +p{
-            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
-              +external-image(`gfn/tianjiupai-combinations-2.jpg`);
-            >%
-
             至尊が打ち出しの場合は少し特殊なので後で触れるとして，
             ひとまず文尊か武尊以外のパターンを最初のプレイヤーが打ち出したとします．
             2番目のプレイヤーは，この打ち出しに続いて牌を出します．打ち出しと同じ枚数の牌を出す必要があり，
@@ -2805,6 +2814,10 @@ end = struct
             最も強い組み合わせを出したプレイヤー，すなわち最後に表向きで出したプレイヤーがそのトリックを取ります．
           }
           +p{
+            \figure?:(`fig:tianjiupai-combinations-2`){牌を出すときの組み合わせ（3枚出し・4枚出し）}<
+              +external-image(`gfn/tianjiupai-combinations-2.jpg`);
+            >%
+
             続いて打ち出しが至尊の場合についてです．これらは或る種の “最強役” で，
             武尊（三と六の組み合わせ）が打ち出しの場合，2番目以降のプレイヤーは裏向きで2枚出す以外のことができません．
             したがって最初に武尊が打ち出された時点でその打ち出しのプレイヤーがそのトリックを取ることが確定します．
