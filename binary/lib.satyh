@@ -1,0 +1,54 @@
+@require: base/color-ext
+@require: base/inline
+
+module BinaryCommands : sig
+
+  val \spade : [inline-text] inline-cmd
+  val \heart : [inline-text] inline-cmd
+  val \club : [inline-text] inline-cmd
+  val \diamond : [inline-text] inline-cmd
+
+end = struct
+
+  let font-emoji =
+    (`fonts-noto-sans-cjk-jp:NotoSansCJKjp-Regular`, 1.0, 0.)
+
+  let make-emoji-ctx ctx = ctx
+    |> set-font Latin font-emoji
+    |> set-font HanIdeographic font-emoji
+    |> set-font Kana font-emoji
+
+  let card-ctx ctx rank ib-suit =
+    let ib-rank = ctx |> Inline.read rank in
+    let pads = (0pt, 0pt, 0pt, 0pt) in
+    let deco _ _ _ _ = [] in
+    inline-frame-outer pads deco (ib-rank ++ ib-suit)
+
+  let-inline ctx \spade rank =
+    let ib-suit = ctx
+      |> make-emoji-ctx
+      |> Inline.of-string `♠` in
+    card-ctx ctx rank ib-suit
+
+  let-inline ctx \heart rank =
+    let ib-suit = ctx
+      |> make-emoji-ctx
+      |> set-text-color (Color.of-css `deeppink`)
+      |> Inline.of-string `♥` in
+    card-ctx ctx rank ib-suit
+
+  let-inline ctx \club rank =
+    let ib-suit = ctx
+      |> make-emoji-ctx
+      |> set-text-color (Color.of-css `forestgreen`)
+      |> Inline.of-string `♣` in
+    card-ctx ctx rank ib-suit
+
+  let-inline ctx \diamond rank =
+    let ib-suit = ctx
+      |> make-emoji-ctx
+      |> set-text-color (Color.of-css `royalblue`)
+      |> Inline.of-string `♦` in
+    card-ctx ctx rank ib-suit
+
+end
