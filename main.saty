@@ -23,22 +23,40 @@ YABAITECH.TOKYO vol.7
 =====================
 `` in
 
-let colophon = ColophonData.make (|
-  title = `YABAITECH.TOKYO vol.7`;
-  history = [`2021年12月31日 コミックマーケット99版 発行`];
-  publisher = (Option.some `yabaitech.tokyo`);
-  website = (Option.some `https://yabaitech.tokyo`);
-  email = (Option.some `admin@yabaitech.tokyo`);
-  printer = (Option.some `株式会社ポプルス`);
-|)
-in
-document (|
+let printed = false in
+
+let opts-printed =  (|
   title = `YABAITECH.TOKYO`;
   volume = `vol.7`;
   date = `2021`;
   front = Option.none;
-  colophon = colophon;
-|) '<
+  colophon = ColophonData.make (|
+    title = `YABAITECH.TOKYO vol.7`;
+    history = [`2021年12月31日 コミックマーケット99版 発行`];
+    publisher = (Option.some `yabaitech.tokyo`);
+    website = (Option.some `https://yabaitech.tokyo`);
+    email = (Option.some `admin@yabaitech.tokyo`);
+    printer = (Option.some `株式会社ポプルス`);
+  |);
+|) in
+
+let opts-ebook = (|
+  title = `YABAITECH.TOKYO`;
+  volume = `vol.7`;
+  date = `2021`;
+  front = Option.some `front.pdf`;
+  colophon = ColophonData.make (|
+    title = `YABAITECH.TOKYO vol.7`;
+    history = [`2021年12月31日 コミックマーケット99版 発行`];
+    publisher = (Option.some `yabaitech.tokyo`);
+    website = (Option.some `https://yabaitech.tokyo`);
+    email = (Option.some `admin@yabaitech.tokyo`);
+    printer = Option.none
+  |);
+|)
+
+in
+document (if printed then opts-printed else opts-ebook) '<
   #MasWag.article;
   #Binary.article;
   #Zeptometer.article;
