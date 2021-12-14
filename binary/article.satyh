@@ -50,7 +50,7 @@ end = struct
       +section{はじめに} <
         +p{
           yabaitech.tokyo vol.7 を手に取ってくださりありがとうございます。
-          前回の vol.6 では、世界的に見て最もポピュラーなポーカーの変種と言える
+          前号の vol.6 では、世界的に見て最もポピュラーなポーカーの変種と言える
           \dfn{テキサスホールデム}の役判定を高速に行う話を書かせていただきましたが、
           今回も引き続いてポーカーを念頭に置いた記事を投稿したいと思います。
         }
@@ -1657,7 +1657,7 @@ end = struct
           +p{
             ここで、やはり問題となるのが `evaluate()` の実装です。
             `evaluate()` がどのようなメソッドだったかを思い出すと、「終端履歴 `node` において、
-            最初の偶然手番の寄与を含まない counterfactual到達確率が `pmi` のときの、 `player` の
+            最初の偶然手番の寄与を含まない counterfactual到達確率が `pmi` のときの `player` の
             counterfactual value を計算する」というものでした。
             また、counterfactual valueは終端履歴においてはcounterfactual到達確率と利得の積で
             与えられるのでしたね。
@@ -2113,8 +2113,8 @@ end = struct
           ゲームであって、テキサスホールデムの解析には程遠いものでもありました。
           実際には2017年のほぼ同時期に\dfn{DeepStack}と\dfn{Libratus}という二つのプログラムが
           ヘッズアップのゲームにおいてプロを破っているなど、プログラムの開発者は何らかの方法で
-          テキサスホールデムの複雑さに向き合っていることが分かります（もちろん使われている計算資源は
-          一般人からしたら膨大なものではありますが）。
+          テキサスホールデムの複雑さに向き合っていることが分かります（使われている計算資源は
+          一般人からするとしばしば膨大すぎるものではありますが）。
         }
 
         +p{
@@ -2135,8 +2135,8 @@ end = struct
             部分ゲームのCFRが再計算できるという\dfn{continual re-solving}と、探索の深さが一定以上に
             なったらcounterfactual valueの計算をディープラーニングで学習させた\dfn{deep CFVnet}の
             推測値で代用するというテクニックを用いています。
-            Deep CFVnetのターンの学習には175 CPUコア年の計算資源を用いるなど、使用されている
-            計算資源は膨大です。
+            ターンラウンドの学習には175 CPUコア年の計算資源を用いるなど、使用されている計算資源は
+            膨大です。
 
           * \dfn{Libratus}\footnote{N. Brown and T. Sandholm. \emph{Superhuman AI for heads-up
             no-limit poker: Libratus beats top professionals.} Science, 359(6374):418–424. 2018.}:
