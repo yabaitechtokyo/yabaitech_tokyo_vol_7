@@ -154,7 +154,7 @@ end = struct
                 名称なのでその点についてはご容赦ください。
                 ちなみに英語では“Battle of the sexes”となりますが、調べてみたところやはり
                 ポリティカルコレクトネスに配慮して“Bach or Stravinsky”ゲームと名称を変えている
-                文献も多いようです。
+                文献も少なくないようです。
               }
               と呼ばれるゲームを見てみましょう。
               このゲームはある男女の組がデートに行こうとしており、一緒に行動したいという点では
@@ -324,7 +324,7 @@ end = struct
 
             +p{
               また、これは理論寄りの話題となりますが、ほとんどすべての有限ゲームにはナッシュ均衡が
-              奇数個存在することが知られています（ここでの「ほとんどすべて」は数学用語です）。
+              奇数個存在することが知られています。
               じゃんけんについてはナッシュ均衡は一つだったので良いとして、男女の争いについては
               中途半端に二つしか見つけられていませんが、どういうことなのでしょうか。
               実は、これは混合戦略を考慮していなかったことが原因で、混合戦略までちゃんと考えると
@@ -495,7 +495,7 @@ end = struct
               厳密に求めることができます\footnote{
                 ただし、展開型ゲームにおいては\dfn{完全記憶(perfect recall)}という性質がゲームに
                 備わっている必要があります。
-                完全記憶でない展開型ゲームのナッシュ均衡を求めるのはNP完全です。
+                完全記憶でない展開型ゲームのナッシュ均衡を求めるのはNP困難です。
               }。
               二人非ゼロサムゲームおよびその一般化の三人ゼロサムゲームにおいては、多項式時間の
               アルゴリズムが存在するかどうかは未解決問題で、もしそのようなアルゴリズムが存在した
@@ -1064,7 +1064,6 @@ end = struct
                   const ALPHA: f64 = 1.5;
                   const BETA: f64 = 0.0;
                   const GAMMA: f64 = 2.0;
-
                   /// コンストラクタ
                   pub fn new(game: &'a T) -> Self {
                       Self {
@@ -1102,6 +1101,7 @@ end = struct
                   Self::build_tree(&root, &mut self.cum_regret);
                   Self::build_tree(&root, &mut self.cum_strategy);
 
+                  // 到達確率を1で初期化
                   let ones = vec![1.0; T::num_private_hands()];
 
                   // 自己対戦を繰り返す
@@ -1132,12 +1132,10 @@ end = struct
                   if node.is_terminal() {
                       return;
                   }
-
                   tree.insert(
                       node.public_history().clone(),
                       vec![vec![0.0; T::num_private_hands()]; node.num_actions()],
                   );
-
                   for action in node.actions() {
                       Self::build_tree(&node.play(action), tree);
                   }
@@ -1239,10 +1237,10 @@ end = struct
 
                   // 現時刻の戦略を regret-matching アルゴリズムによって求める
                   let mut strategy = Self::regret_matching(&self.cum_regret[public_history]);
-
                   // 返り値となる counterfactual value を0で初期化
                   let mut cfvalue = vec![0.0; T::num_private_hands()];
 
+                  // 手番が `player` の場合
                   if node.current_player() == player {
                       let mut cfvalue_action_vec = Vec::with_capacity(node.num_actions());
 
@@ -1278,7 +1276,9 @@ end = struct
                           mul_assign_vec(&mut strategy[action], &pi);
                           add_assign_vec(cum_strategy, &strategy[action]);
                       }
-                  } else {
+                  }
+                  // 手番が `player` でない場合
+                  else {
                       for action in node.actions() {
                           let pmi = mul_vec(&pmi, &strategy[action]);
                           add_assign_vec(
@@ -1411,7 +1411,6 @@ end = struct
                       // `dot` は内積を計算する関数
                       return dot(&game.evaluate(node, player, pmi), &pi);
                   }
-
                   let current_strategy = &strategy[node.public_history()];
                   if node.current_player() == player {
                       node.actions()
@@ -1451,7 +1450,9 @@ end = struct
                   let br1 = best_cfvalues_rec(game, &T::root(), 1, &ones, strategy);
                   br0.iter().sum::<f64>() + br1.iter().sum::<f64>()
               }
+            ```);
 
+            +code(```
               /// 最適反応戦略の counterfactual value を再帰的に計算するヘルパー
               fn best_cfvalues_rec<T: Game>(
                   game: &T,
@@ -1501,8 +1502,8 @@ end = struct
             }
 
             +p{
-              よって、ヘルパー関数 `best_cfvalues_rec()` は ${\app{\pi_{-i}^\sigma}{h}} だけを
-              引数にとって追跡します。
+              よって、`best_cfvalues_rec()` は ${\app{\pi_{-i}^\sigma}{h}} だけを引数にとって
+              追跡します。
               現在の `node` の手番が `player` であるなら、counterfactual value、すなわち利得の
               期待値への寄与が最大となるアクションを選択し、手番が `player` でないなら単に
               counterfactual value を加算します。
@@ -1809,21 +1810,22 @@ end = struct
           }
 
           +console(```
-            - Exploitability: +4.774e-5
-
             [First player]
             - EV: -0.0556
             - Bet%                          - Call% (Check => Bet => ?)
                 K: 56.72%                       K: 100.00%
                 Q: 0.00%                        Q: 52.25%
                 J: 18.90%                       J: 0.00%
-
             [Second player]
             - EV: +0.0556
             - Bet% (Check => ?)             - Call% (Bet => ?)
                 K: 100.00%                      K: 100.00%
                 Q: 0.00%                        Q: 33.33%
                 J: 33.33%                       J: 0.00%
+          ```);
+
+          +console(```
+            - Exploitability: +4.774e-5
           ```);
 
           +p{
@@ -1923,9 +1925,9 @@ end = struct
               エフェクティブスタックが小さい状況では中途半端なレイズが悪手なのは間違いないのですが、
               最近の解析ではコールは実は強力なことが分かりつつあります。
               ただし、コールを戦略に組み込む場合は相手のオールインに対するディフェンスや、
-              プリフロップ以降のラウンドの戦略についても考えなければなりません。
-              よって、コールは特に上級者に向いたアクションであると言え、初心者にはやはりオールインか
-              フォールドに選択肢を限った戦略の方が扱いやすいでしょう。
+              プリフロップ以降の戦略についても考えなければなりません。
+              よって、コールは上級者に向いたアクションであると言え、初心者にはやはりオールインか
+              フォールドに限った戦略の方が扱いやすいでしょう。
             }。
           }
         >
@@ -1985,7 +1987,12 @@ end = struct
             フラッシュで負ける可能性が無いのに対し、 \diamond{A}\club{A} のペアはスペードかハートの
             フラッシュを相手に作られると負け得るため、勝率が異なることが分かります。
             従って、`evaluate()` では${\choose{52}{2} = 1,326}通りのすべての組み合わせをちゃんと
-            試す必要があるのです。
+            試す必要があるのです\footnote{
+              計算結果が厳密でなくなることを承知の上で、あえてこういった「横着」をするという方針も
+              あり得ます。
+              このようなテクニックは\dfn{抽象化}と呼ばれ、最先端のソルバーなどは多かれ少なかれ
+              何らかの抽象化を行っています。
+            }。
           }
         >
 
@@ -2009,7 +2016,6 @@ end = struct
 
                 // CFRを管理する構造体のインスタンスを作製
                 let mut cfr = CFRMinimizer::new(&push_fold_game);
-
                 // CFRを実行して最適戦略を得る
                 let strategy = cfr.compute(num_iterations);
 
