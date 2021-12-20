@@ -154,7 +154,7 @@ end = struct
                 名称なのでその点についてはご容赦ください。
                 ちなみに英語では“Battle of the sexes”となりますが、調べてみたところやはり
                 ポリティカルコレクトネスに配慮して“Bach or Stravinsky”ゲームと名称を変えている
-                文献も多いようです。
+                文献も少なくないようです。
               }
               と呼ばれるゲームを見てみましょう。
               このゲームはある男女の組がデートに行こうとしており、一緒に行動したいという点では
@@ -240,10 +240,10 @@ end = struct
               混合戦略とは、例えばグーを50\%、チョキを30\%、パーを20\%で出すといったように、
               確率的にアクションを決定する戦略のことです。
               なおこれに対して、例えば決まってグーを出すといったように確率によらない戦略は
-              \dfn{純粋戦略}と呼ばれます。
-              今回のじゃんけんの例では、直感的か非直感的かは人によると思いますが、三種類の手を
-              それぞれ等確率に出す混合戦略を両者が採用する、というのがこのゲームにおける唯一の
-              ナッシュ均衡となります。
+              \dfn{純粋戦略}と呼ばれ、男女の争いの例では純粋戦略のみによるナッシュ均衡を紹介
+              しました。
+              今回のじゃんけんの例では、三種類の手をそれぞれ等確率に出す混合戦略を両者が採用する、
+              というのがこのゲームにおける唯一のナッシュ均衡となります。
             }
 
             +p{
@@ -324,7 +324,7 @@ end = struct
 
             +p{
               また、これは理論寄りの話題となりますが、ほとんどすべての有限ゲームにはナッシュ均衡が
-              奇数個存在することが知られています（ここでの「ほとんどすべて」は数学用語です）。
+              奇数個存在することが知られています。
               じゃんけんについてはナッシュ均衡は一つだったので良いとして、男女の争いについては
               中途半端に二つしか見つけられていませんが、どういうことなのでしょうか。
               実は、これは混合戦略を考慮していなかったことが原因で、混合戦略までちゃんと考えると
@@ -481,7 +481,7 @@ end = struct
           +subsubsection{補足：ナッシュ均衡を厳密に求めるアルゴリズム} <
             +p{
               さて、ここまでのCFRアルゴリズムの説明をよく読むと、ナッシュ均衡に「収束」するという
-              表現が用いられていて、ナッシュ均衡が「求まる」とは表現されていませんでした。
+              表現が用いられていて、ナッシュ均衡解が「求まる」とは表現されていませんでした。
               これは、CFRアルゴリズムは\dfn{反復解法}であるため、数学的な意味でナッシュ均衡を厳密に
               満たす戦略の組を有限の時間で求められるようなアルゴリズムではないためです。
               なお、反復解法とは定められた処理を繰り返すことで求めたい解の近似を徐々に改善していく
@@ -491,11 +491,11 @@ end = struct
             +p{
               ナッシュ均衡を\dfn{解析的}に求めたい、すなわち数学的にナッシュ均衡を厳密に満たす
               戦略の組を求めたいという場合は、\dfn{直接解法}を用いる必要があります。
-              実際、二人ゼロサムゲームならば\dfn{線形計画法}によって多項式時間でナッシュ均衡を
+              実際、二人ゼロサムゲームならば\dfn{線形計画法}によって多項式時間でナッシュ均衡解を
               厳密に求めることができます\footnote{
                 ただし、展開型ゲームにおいては\dfn{完全記憶(perfect recall)}という性質がゲームに
                 備わっている必要があります。
-                完全記憶でない展開型ゲームのナッシュ均衡を求めるのはNP完全です。
+                完全記憶でない展開型ゲームのナッシュ均衡を求めるのはNP困難です。
               }。
               二人非ゼロサムゲームおよびその一般化の三人ゼロサムゲームにおいては、多項式時間の
               アルゴリズムが存在するかどうかは未解決問題で、もしそのようなアルゴリズムが存在した
@@ -1064,7 +1064,6 @@ end = struct
                   const ALPHA: f64 = 1.5;
                   const BETA: f64 = 0.0;
                   const GAMMA: f64 = 2.0;
-
                   /// コンストラクタ
                   pub fn new(game: &'a T) -> Self {
                       Self {
@@ -1102,6 +1101,7 @@ end = struct
                   Self::build_tree(&root, &mut self.cum_regret);
                   Self::build_tree(&root, &mut self.cum_strategy);
 
+                  // 到達確率を1で初期化
                   let ones = vec![1.0; T::num_private_hands()];
 
                   // 自己対戦を繰り返す
@@ -1132,12 +1132,10 @@ end = struct
                   if node.is_terminal() {
                       return;
                   }
-
                   tree.insert(
                       node.public_history().clone(),
                       vec![vec![0.0; T::num_private_hands()]; node.num_actions()],
                   );
-
                   for action in node.actions() {
                       Self::build_tree(&node.play(action), tree);
                   }
@@ -1160,8 +1158,8 @@ end = struct
               リグレットや戦略を\dfn{同時更新(simultaneous update)}することを前提にしていた
               はずなのに、この実装ではリグレットや戦略がプレイヤー毎に
               \dfn{交互更新(alternating update)}されることになります。
-              果たしてそれで大丈夫なのかと思われるかもしれませんが、実は実用上は交互更新の方が
-              収束が早いことが知られており、そのため今回の実装でも交互更新をあえて採用しています。
+              果たしてそれで大丈夫なのかと思われるかもしれませんが、実用上は交互更新の方が収束が
+              早いことが知られており、そのため今回の実装でも交互更新をあえて採用しています。
               理論的にも、解析は難しくなるものの収束は引き続き保証されるようです\footnote{
                 N. Burch, M. Moravcik, and M. Schmid. \emph{Revisiting CFR+ and alternating
                 updates.} Journal of Artificial Intelligence Research, 64:429–443. 2019.
@@ -1239,10 +1237,10 @@ end = struct
 
                   // 現時刻の戦略を regret-matching アルゴリズムによって求める
                   let mut strategy = Self::regret_matching(&self.cum_regret[public_history]);
-
                   // 返り値となる counterfactual value を0で初期化
                   let mut cfvalue = vec![0.0; T::num_private_hands()];
 
+                  // 手番が `player` の場合
                   if node.current_player() == player {
                       let mut cfvalue_action_vec = Vec::with_capacity(node.num_actions());
 
@@ -1278,7 +1276,9 @@ end = struct
                           mul_assign_vec(&mut strategy[action], &pi);
                           add_assign_vec(cum_strategy, &strategy[action]);
                       }
-                  } else {
+                  }
+                  // 手番が `player` でない場合
+                  else {
                       for action in node.actions() {
                           let pmi = mul_vec(&pmi, &strategy[action]);
                           add_assign_vec(
@@ -1411,7 +1411,6 @@ end = struct
                       // `dot` は内積を計算する関数
                       return dot(&game.evaluate(node, player, pmi), &pi);
                   }
-
                   let current_strategy = &strategy[node.public_history()];
                   if node.current_player() == player {
                       node.actions()
@@ -1451,7 +1450,9 @@ end = struct
                   let br1 = best_cfvalues_rec(game, &T::root(), 1, &ones, strategy);
                   br0.iter().sum::<f64>() + br1.iter().sum::<f64>()
               }
+            ```);
 
+            +code(```
               /// 最適反応戦略の counterfactual value を再帰的に計算するヘルパー
               fn best_cfvalues_rec<T: Game>(
                   game: &T,
@@ -1501,8 +1502,8 @@ end = struct
             }
 
             +p{
-              よって、ヘルパー関数 `best_cfvalues_rec()` は ${\app{\pi_{-i}^\sigma}{h}} だけを
-              引数にとって追跡します。
+              よって、`best_cfvalues_rec()` は ${\app{\pi_{-i}^\sigma}{h}} だけを引数にとって
+              追跡します。
               現在の `node` の手番が `player` であるなら、counterfactual value、すなわち利得の
               期待値への寄与が最大となるアクションを選択し、手番が `player` でないなら単に
               counterfactual value を加算します。
@@ -1809,15 +1810,12 @@ end = struct
           }
 
           +console(```
-            - Exploitability: +4.774e-5
-
             [First player]
             - EV: -0.0556
             - Bet%                          - Call% (Check => Bet => ?)
                 K: 56.72%                       K: 100.00%
                 Q: 0.00%                        Q: 52.25%
                 J: 18.90%                       J: 0.00%
-
             [Second player]
             - EV: +0.0556
             - Bet% (Check => ?)             - Call% (Bet => ?)
@@ -1826,8 +1824,12 @@ end = struct
                 J: 33.33%                       J: 0.00%
           ```);
 
+          +console(```
+            - Exploitability: +4.774e-5
+          ```);
+
           +p{
-            まず、可搾取量は${4.8 \times 10^{-5}}となっており、実用上は十分収束していることが
+            まず、可搾取量は${4.8 \times 10^{-5}}未満となっており、実用上は十分収束していることが
             分かります。
             これだけ収束していれば、得られた戦略もほぼナッシュ均衡となっているはずで、数学的に
             求まっている最適戦略と実際に比較してみると${\alpha \approx 18.91\%}のときの最適戦略と
@@ -1923,9 +1925,9 @@ end = struct
               エフェクティブスタックが小さい状況では中途半端なレイズが悪手なのは間違いないのですが、
               最近の解析ではコールは実は強力なことが分かりつつあります。
               ただし、コールを戦略に組み込む場合は相手のオールインに対するディフェンスや、
-              プリフロップ以降のラウンドの戦略についても考えなければなりません。
-              よって、コールは特に上級者に向いたアクションであると言え、初心者にはやはりオールインか
-              フォールドに選択肢を限った戦略の方が扱いやすいでしょう。
+              プリフロップ以降の戦略についても考えなければなりません。
+              よって、コールは上級者に向いたアクションであると言え、初心者にはやはりオールインか
+              フォールドに限った戦略の方が扱いやすいでしょう。
             }。
           }
         >
@@ -1985,7 +1987,12 @@ end = struct
             フラッシュで負ける可能性が無いのに対し、 \diamond{A}\club{A} のペアはスペードかハートの
             フラッシュを相手に作られると負け得るため、勝率が異なることが分かります。
             従って、`evaluate()` では${\choose{52}{2} = 1,326}通りのすべての組み合わせをちゃんと
-            試す必要があるのです。
+            試す必要があるのです\footnote{
+              計算結果が厳密でなくなることを承知の上で、あえてこういった「横着」をするという方針も
+              あり得ます。
+              そのようなテクニックは\dfn{抽象化}と呼ばれ、最先端のソルバーなどは多かれ少なかれ
+              何らかの抽象化を行っています。
+            }。
           }
         >
 
@@ -2009,7 +2016,6 @@ end = struct
 
                 // CFRを管理する構造体のインスタンスを作製
                 let mut cfr = CFRMinimizer::new(&push_fold_game);
-
                 // CFRを実行して最適戦略を得る
                 let strategy = cfr.compute(num_iterations);
 
@@ -2127,8 +2133,8 @@ end = struct
 
         +p{
           そこで、ポーカーAIの最新の動向を知りたいという方のためにDeepStackとLibratusおよび
-          それ以降の代表的なポーカーAIを独断でチョイスして、その名前と対応する論文のリストを古い順に
-          紹介しようと思います。
+          それ以降の代表的なポーカーAIを独断でチョイスして、その名前と対応する論文のリストを
+          時系列順に紹介しようと思います。
           開発者（研究者）がテキサスホールデムなどの非常に複雑なゲームに対してどう向き合って
           いるのか、気になる方はこれらの論文にぜひあたってみてください。
           CFRアルゴリズムの基礎を本記事で学んだ後ならば、これらの論文もだいぶ読みやすくなっている
@@ -2143,7 +2149,7 @@ end = struct
             部分ゲームのCFRが再計算できるという\dfn{continual re-solving}と、探索の深さが一定以上に
             なったらcounterfactual valueの計算をディープラーニングで学習させた\dfn{deep CFVnet}の
             推測値で代用するというテクニックを用いています。
-            ターンラウンドの学習には175 CPUコア年の計算資源を用いるなど、使用されている計算資源は
+            ターンにおける学習には175 CPUコア年の計算資源を用いるなど、使用されている計算資源は
             膨大です。
 
           * \dfn{Libratus}\footnote{N. Brown and T. Sandholm. \emph{Superhuman AI for heads-up
